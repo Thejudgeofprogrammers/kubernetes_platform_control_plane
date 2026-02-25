@@ -1,0 +1,9 @@
+package domain
+
+import "errors"
+
+var ErrClientNotFound = errors.New("client not found")
+var ErrInvalidStateTransition = errors.New("invalid state transition")
+var ErrConfigVersionExists = errors.New("config version already exists")
+var ErrConfigNotFound = errors.New("config not found")
+var ErrInvalidRefreshToken = errors.New("invalid refresh token")
