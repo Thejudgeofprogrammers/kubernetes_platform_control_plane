@@ -2,7 +2,7 @@ package handler
 
 import (
 	"control_plane/internal/domain"
-	"control_plane/internal/service"
+	cfgService "control_plane/internal/service/config"
 	dto "control_plane/internal/transport/http_gin/dto/client"
 	"control_plane/internal/transport/http_gin/mapper"
 	"errors"
@@ -12,10 +12,10 @@ import (
 )
 
 type ConfigHandler struct {
-	service service.ConfigService
+	service cfgService.ConfigService
 }
 
-func NewConfigHandler(s service.ConfigService) *ConfigHandler {
+func NewConfigHandler(s cfgService.ConfigService) *ConfigHandler {
 	return &ConfigHandler{
 		service: s,
 	}
@@ -136,6 +136,6 @@ func (h *ConfigHandler) Deploy(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{
 		"client_id": clientID,
 		"config_id": configID,
-		"status": string(domain.ClientStatusDeploying),
+		"status":    string(domain.ClientStatusDeploying),
 	})
 }

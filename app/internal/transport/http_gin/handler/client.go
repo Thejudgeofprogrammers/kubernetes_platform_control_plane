@@ -2,7 +2,7 @@ package handler
 
 import (
 	"control_plane/internal/domain"
-	"control_plane/internal/service"
+	"control_plane/internal/service/client"
 	dto "control_plane/internal/transport/http_gin/dto/client"
 	"control_plane/internal/transport/http_gin/mapper"
 	"errors"
@@ -13,10 +13,10 @@ import (
 )
 
 type ClientHandler struct {
-	service service.ClientService
+	service client.ClientService
 }
 
-func NewClientHandler(s service.ClientService) *ClientHandler {
+func NewClientHandler(s client.ClientService) *ClientHandler {
 	return &ClientHandler{
 		service: s,
 	}

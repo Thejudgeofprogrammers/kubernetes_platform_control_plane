@@ -1,18 +1,25 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	Port              string
-	VersionAPI        string
-	AllowUnauthorized string
-	AllowForbidden    string
+	Port           string
+	VersionAPI     string
+	AllowForbidden string
+	secret         string
+	Exp            int
+	Ref_time       int
+	RedisAddr      string
+	redisPassword  string
+	RedisDB        int
 }
 
 func LoadEnv() *Config {
@@ -35,13 +42,33 @@ func LoadEnv() *Config {
 	}
 
 	config := &Config{
-		Port:              getenv("PORT", "8000"),
-		VersionAPI:        getenv("VERSION_API", "v1"),
-		AllowUnauthorized: getenv("ALLOW_CHECK_401", "True"),
-		AllowForbidden:    getenv("ALLOW_CHECK_403", "True"),
+		Port:           getenv("PORT", "8000"),
+		VersionAPI:     getenv("VERSION_API", "v1"),
+		AllowForbidden: getenv("ALLOW_CHECK_403", "True"),
+		secret:         getenv("SECRET", "1984"),
+		Exp:            getenvInt("EXPIRE_JWT", "600"),
+		Ref_time:       getenvInt("REFRESH_TIME_JWT", "604800"),
+		RedisAddr:      getenv("REDIS_ADDR", "localhost:6379"),
+		redisPassword:  getenv("REDIS_PASSWORD", "1984"),
+		RedisDB:        getenvInt("REDIS_DB", "0"),
 	}
 
 	return config
+}
+
+func getenvInt(k string, v string) int {
+	e := os.Getenv(k)
+	if e == "" {
+		num, _ := strconv.Atoi(v)
+		return num
+	}
+	num, err := strconv.Atoi(e)
+	if err != nil {
+		num, _ = strconv.Atoi(v)
+		fmt.Printf("key: %s=%s not a number, default=%s", k, e, v)
+		return num
+	}
+	return num
 }
 
 func getenv(k string, v string) string {
@@ -50,4 +77,12 @@ func getenv(k string, v string) string {
 		return v
 	}
 	return e
+}
+
+func (c *Config) GetSecret() string {
+	return c.secret
+}
+
+func (c *Config) GetRedisPassword() string {
+	return c.redisPassword
 }
