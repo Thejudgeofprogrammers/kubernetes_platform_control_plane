@@ -10,6 +10,7 @@ import (
 	auth "control_plane/internal/service/auth/impl"
 	client "control_plane/internal/service/client/impl"
 	cfgService "control_plane/internal/service/config/impl"
+	health "control_plane/internal/service/health/impl"
 	jwt "control_plane/internal/service/jwt/impl"
 	refresh "control_plane/internal/service/refresh/impl"
 	"control_plane/internal/transport/http_gin/handler"
@@ -24,64 +25,73 @@ func RegisterRoutes(r *gin.Engine, env *config.Config) {
 	actionRepository := memory.NewInMemoryClientActionRepository()
 	configRepository := memory.NewInMemoryClientConfigRepository()
 	userRepository := memory.NewInMemoryUserRepository()
-	// emailCodeRepository := memory.NewInMemoryEmailCodeRepository()
-
-	// mock
-	orchestrator := mock.NewMockOrchestrator()
+	codeRepository := memory.NewInMemoryEmailCodeRepository()
+	healthRepository := memory.NewInMemoryClientHealthRepository()
+	// apiServiceRepository := memory.NewInMemoryAPIServiceRepository()
 
 	// redis
 	rdb := redis.NewRedisClient(env.RedisAddr, env.GetRedisPassword(), env.RedisDB)
 
 	// Services
 	auditService := audit.NewAuditService(actionRepository)
+	healthService := health.NewHealthService(healthRepository)
+	orchestrator := mock.NewMockOrchestrator(healthService)
 	configService := cfgService.NewConfigService(
 		clientRepository,
 		configRepository,
 		auditService,
 		orchestrator,
 	)
-
 	clientService := client.NewClientService(clientRepository, orchestrator, auditService)
 	jwtService := jwt.NewJWTService(env.GetSecret(), env.Exp)
-	refreshService := refresh.NewRefreshService(rdb)
-	authService := auth.NewAuthService(userRepository, refreshService, jwtService)
+	refreshService := refresh.NewRefreshService(rdb, env.Ref_time)
+	authService := auth.NewAuthService(userRepository, codeRepository, refreshService, jwtService, env.ExpireEmailCode)
 
-	// Handlers ............
+	// Handlers
 	clientHandler := handler.NewClientHandler(clientService)
 	configHandler := handler.NewConfigHandler(configService)
+	authHandler := handler.NewAuthHandler(authService)
+	healthHandler := handler.NewHealthHandler(healthService)
 
-	api := r.Group("/api/v1")
+	api := r.Group("/api/" + env.VersionAPI)
+	protected := api.Group("/")
+	protected.Use(middleware.JWTAuthMiddleware(jwtService))
 
-	api.Use(
-		middleware.AddUserID(),
-		// middleware.JWTAuthMiddleware(),
-	)
+	// auth
+	api.POST("/auth/register", authHandler.Register)
+	api.POST("/auth/request-code", authHandler.RequestCode)
+	api.POST("/auth/verify-code", authHandler.VerifyCode)
+	api.POST("/auth/refresh", authHandler.Refresh)
 
-	api.GET("/clients", clientHandler.List)
-	api.GET("/clients/:client_id", clientHandler.GetByID)
-	api.GET("/clients/:client_id/configs", configHandler.ListConfigs)
+	// health
+	protected.GET("/clients/:client_id/health", healthHandler.GetHealth)
 
-	api.POST(
+	// client
+	protected.GET("/clients", clientHandler.List)
+	protected.GET("/clients/:client_id", clientHandler.GetByID)
+	protected.GET("/clients/:client_id/configs", configHandler.ListConfigs)
+
+	protected.POST(
 		"/clients",
 		middleware.RoleMiddleware(env.AllowForbidden, string(domain.RoleOwner)),
 		clientHandler.Create,
 	)
-	api.POST(
+	protected.POST(
 		"/clients/:client_id/restart",
 		middleware.RoleMiddleware(env.AllowForbidden, string(domain.RoleOwner)),
 		clientHandler.RestartById,
 	)
-	api.POST(
+	protected.POST(
 		"/clients/:client_id/delete",
 		middleware.RoleMiddleware(env.AllowForbidden, string(domain.RoleOwner)),
 		clientHandler.DeleteById,
 	)
-	api.POST(
+	protected.POST(
 		"/clients/:client_id/configs",
 		middleware.RoleMiddleware(env.AllowForbidden, string(domain.RoleOwner)),
 		configHandler.CreateConfig,
 	)
-	api.POST(
+	protected.POST(
 		"/clients/:client_id/configs/:config_id/deploy",
 		middleware.RoleMiddleware(env.AllowForbidden, string(domain.RoleOwner)),
 		configHandler.Deploy,

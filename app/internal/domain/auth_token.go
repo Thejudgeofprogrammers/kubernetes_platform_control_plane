@@ -1,4 +1,4 @@
-package jwt
+package domain
 
 type AuthTokens struct {
 	AccessToken  string

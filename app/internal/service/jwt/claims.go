@@ -1,9 +1,13 @@
 package jwt
 
-import "github.com/golang-jwt/jwt/v5"
+import (
+	"control_plane/internal/domain"
+
+	"github.com/golang-jwt/jwt/v5"
+)
 
 type Claims struct {
-	UserID string `json:"user_id"`
-	Role   string `json:"role"`
+	UserID string
+	Role   domain.AccessRole
 	jwt.RegisteredClaims
 }

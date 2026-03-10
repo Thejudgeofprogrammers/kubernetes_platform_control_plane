@@ -12,7 +12,7 @@ const (
 
 type APIClientHealth struct {
 	ClientID  string
-	Status    string
+	Status    HealthStatus
 	LastCheck time.Time
 	Message   string
 }

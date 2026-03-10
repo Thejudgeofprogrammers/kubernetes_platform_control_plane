@@ -3,6 +3,8 @@ package memory
 import (
 	"context"
 	"control_plane/internal/domain"
+	"control_plane/internal/repository"
+	"sort"
 	"sync"
 )
 
@@ -11,7 +13,7 @@ type InMemoryClientActionRepository struct {
 	mu sync.RWMutex
 }
 
-func NewInMemoryClientActionRepository() *InMemoryClientActionRepository {
+func NewInMemoryClientActionRepository() repository.ClientActionRepository {
 	return &InMemoryClientActionRepository{
 		storage: []*domain.APIClientAction{},
 	}
@@ -33,9 +35,14 @@ func (r *InMemoryClientActionRepository) ListByClientID(ctx context.Context, cli
 
 	for _, action := range r.storage {
 		if action.ClientID == clientID {
-			result = append(result, action)
+			copyAction := *action
+			result = append(result, &copyAction)
 		}
 	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].CreatedAt.Before(result[j].CreatedAt)
+	})
 
 	return result, nil
 }

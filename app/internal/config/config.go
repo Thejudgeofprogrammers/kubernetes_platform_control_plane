@@ -11,15 +11,16 @@ import (
 )
 
 type Config struct {
-	Port           string
-	VersionAPI     string
-	AllowForbidden string
-	secret         string
-	Exp            int
-	Ref_time       int
-	RedisAddr      string
-	redisPassword  string
-	RedisDB        int
+	Port            string
+	VersionAPI      string
+	AllowForbidden  string
+	secret          string
+	Exp             int
+	Ref_time        int
+	RedisAddr       string
+	redisPassword   string
+	RedisDB         int
+	ExpireEmailCode int
 }
 
 func LoadEnv() *Config {
@@ -42,15 +43,16 @@ func LoadEnv() *Config {
 	}
 
 	config := &Config{
-		Port:           getenv("PORT", "8000"),
-		VersionAPI:     getenv("VERSION_API", "v1"),
-		AllowForbidden: getenv("ALLOW_CHECK_403", "True"),
-		secret:         getenv("SECRET", "1984"),
-		Exp:            getenvInt("EXPIRE_JWT", "600"),
-		Ref_time:       getenvInt("REFRESH_TIME_JWT", "604800"),
-		RedisAddr:      getenv("REDIS_ADDR", "localhost:6379"),
-		redisPassword:  getenv("REDIS_PASSWORD", "1984"),
-		RedisDB:        getenvInt("REDIS_DB", "0"),
+		Port:            getenv("PORT", "8000"),
+		VersionAPI:      getenv("VERSION_API", "v1"),
+		AllowForbidden:  getenv("ALLOW_CHECK_403", "True"),
+		secret:          getenv("SECRET", "1984"),
+		Exp:             getenvInt("EXPIRE_JWT", "600"),
+		Ref_time:        getenvInt("REFRESH_TIME_JWT", "604800"),
+		RedisAddr:       getenv("REDIS_ADDR", "localhost:6379"),
+		redisPassword:   getenv("REDIS_PASSWORD", "1984"),
+		RedisDB:         getenvInt("REDIS_DB", "0"),
+		ExpireEmailCode: getenvInt("EXPIRE_EMAIL_CODE", "300"),
 	}
 
 	return config
