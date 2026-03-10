@@ -3,16 +3,18 @@ package memory
 import (
 	"context"
 	"control_plane/internal/domain"
+	"control_plane/internal/repository"
+	"errors"
 	"sort"
 	"sync"
 )
 
 type InMemoryClientRepository struct {
 	storage map[string]*domain.APIClient
-	mu sync.RWMutex
+	mu      sync.RWMutex
 }
 
-func NewInMemoryClientRepository() *InMemoryClientRepository {
+func NewInMemoryClientRepository() repository.ClientRepository {
 	return &InMemoryClientRepository{
 		storage: make(map[string]*domain.APIClient),
 	}
@@ -22,13 +24,17 @@ func (r *InMemoryClientRepository) Create(ctx context.Context, client *domain.AP
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	if _, exists := r.storage[client.ID]; exists {
+		return errors.New("client already exists")
+	}
+
 	r.storage[client.ID] = client
 	return nil
 }
 
 func (r *InMemoryClientRepository) GetByID(ctx context.Context, id string) (*domain.APIClient, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
 	client, ok := r.storage[id]
 	if !ok {
@@ -41,7 +47,7 @@ func (r *InMemoryClientRepository) GetByID(ctx context.Context, id string) (*dom
 func (r *InMemoryClientRepository) Update(ctx context.Context, client *domain.APIClient) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	r.storage[client.ID] = client
 	return nil
 }
@@ -49,7 +55,7 @@ func (r *InMemoryClientRepository) Update(ctx context.Context, client *domain.AP
 func (r *InMemoryClientRepository) Delete(ctx context.Context, id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	if _, ok := r.storage[id]; !ok {
 		return domain.ErrClientNotFound
 	}
@@ -60,7 +66,6 @@ func (r *InMemoryClientRepository) Delete(ctx context.Context, id string) error 
 func (r *InMemoryClientRepository) List(ctx context.Context, status string, limit, offset int) ([]*domain.APIClient, int, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
 
 	result := make([]*domain.APIClient, 0, len(r.storage))
 
@@ -68,7 +73,8 @@ func (r *InMemoryClientRepository) List(ctx context.Context, status string, limi
 		if status != "" && string(client.GetStatus()) != status {
 			continue
 		}
-		result = append(result, client)
+		copyClient := *client
+		result = append(result, &copyClient)
 	}
 
 	sort.Slice(result, func(i, j int) bool {

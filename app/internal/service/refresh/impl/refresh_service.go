@@ -2,6 +2,7 @@ package impl
 
 import (
 	"context"
+	"control_plane/internal/domain"
 	"control_plane/internal/service/refresh"
 	"time"
 
@@ -14,8 +15,11 @@ type refreshService struct {
 	ref_time int
 }
 
-func NewRefreshService(rdb *redis.Client) refresh.RefreshService {
-	return &refreshService{rdb: rdb}
+func NewRefreshService(rdb *redis.Client, ttl int) refresh.RefreshService {
+	return &refreshService{
+		rdb: rdb,
+		ref_time: ttl,
+	}
 }
 
 func (s *refreshService) Create(ctx context.Context, userID string) (string, error) {
@@ -30,7 +34,17 @@ func (s *refreshService) Create(ctx context.Context, userID string) (string, err
 }
 
 func (s *refreshService) Validate(ctx context.Context, token string) (string, error) {
-	return s.rdb.Get(ctx, "refresh:"+token).Result()
+    userID, err := s.rdb.Get(ctx, "refresh:"+token).Result()
+
+    if err == redis.Nil {
+        return "", domain.ErrInvalidRefreshToken
+    }
+
+    if err != nil {
+        return "", err
+    }
+
+    return userID, nil
 }
 
 func (s *refreshService) Delete(ctx context.Context, token string) error {

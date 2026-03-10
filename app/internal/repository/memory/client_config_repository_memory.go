@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"control_plane/internal/domain"
+	"control_plane/internal/repository"
 	"sync"
 )
 
@@ -11,7 +12,7 @@ type InMemoryClientConfigRepository struct {
 	mu      sync.RWMutex
 }
 
-func NewInMemoryClientConfigRepository() *InMemoryClientConfigRepository {
+func NewInMemoryClientConfigRepository() repository.ClientConfigRepository {
 	return &InMemoryClientConfigRepository{
 		storage: make(map[string]*domain.APIClientConfig),
 	}

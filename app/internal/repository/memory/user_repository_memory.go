@@ -9,12 +9,14 @@ import (
 
 type InMemoryUserRepository struct {
 	mu      sync.RWMutex
-	storage map[string]*domain.User // key = email
+	usersByID map[string]*domain.User
+	usersByEmail map[string]*domain.User
 }
 
 func NewInMemoryUserRepository() repository.UserRepository {
 	return &InMemoryUserRepository{
-		storage: make(map[string]*domain.User),
+		usersByID: make(map[string]*domain.User),
+		usersByEmail: make(map[string]*domain.User),
 	}
 }
 
@@ -22,11 +24,13 @@ func (r *InMemoryUserRepository) Create(ctx context.Context, user *domain.User) 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	
-	if _, exists := r.storage[user.Email]; exists {
+	if _, exists := r.usersByEmail[user.Email]; exists {
 		return domain.ErrUserAlreadyExists
 	}
 
-	r.storage[user.Email] = user
+    r.usersByID[user.ID] = user
+    r.usersByEmail[user.Email] = user
+
 	return nil
 }
 
@@ -34,7 +38,7 @@ func (r *InMemoryUserRepository) GetByEmail(ctx context.Context, email string) (
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	
-	user, ok := r.storage[email]
+	user, ok := r.usersByEmail[email]
 	if !ok {
 		return nil, domain.ErrUserNotFound
 	}
@@ -46,11 +50,10 @@ func (r *InMemoryUserRepository) GetByID(ctx context.Context, id string) (*domai
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	for _, user := range r.storage {
-		if user.ID == id {
-			return user, nil
-		}
-	}
+    user, ok := r.usersByID[id]
+    if !ok {
+        return nil, domain.ErrUserNotFound
+    }
 
-	return nil, domain.ErrUserNotFound
+    return user, nil
 }

@@ -3,8 +3,10 @@ package jwt
 import (
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
+	"control_plane/internal/domain"
 	JWTService "control_plane/internal/service/jwt"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 type jwtService struct {
@@ -16,7 +18,7 @@ func NewJWTService(secret string, exp int) JWTService.JWTService {
 	return &jwtService{secret: secret, exp: exp}
 }
 
-func (s *jwtService) GenerateAccessToken(userID, role string) (string, error) {
+func (s *jwtService) GenerateAccessToken(userID string, role domain.AccessRole) (string, error) {
 	claims := JWTService.Claims{
 		UserID: userID,
 		Role:   role,
