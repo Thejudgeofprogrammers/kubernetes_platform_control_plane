@@ -1,4 +1,4 @@
-package service
+package jwt
 
 type AuthTokens struct {
 	AccessToken  string

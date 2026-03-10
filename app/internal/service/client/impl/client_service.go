@@ -1,10 +1,12 @@
-package service
+package impl
 
 import (
 	"context"
 	"control_plane/internal/domain"
 	"control_plane/internal/orchestrator"
 	"control_plane/internal/repository"
+	"control_plane/internal/service/audit"
+	"control_plane/internal/service/client"
 
 	"github.com/google/uuid"
 )
@@ -12,10 +14,10 @@ import (
 type clientService struct {
 	repo  repository.ClientRepository
 	orch  orchestrator.Orchestrator
-	audit *AuditService
+	audit audit.AuditService
 }
 
-func NewClientService(repo repository.ClientRepository, orch orchestrator.Orchestrator, audit *AuditService) ClientService {
+func NewClientService(repo repository.ClientRepository, orch orchestrator.Orchestrator, audit audit.AuditService) client.ClientService {
 	return &clientService{
 		repo:  repo,
 		audit: audit,

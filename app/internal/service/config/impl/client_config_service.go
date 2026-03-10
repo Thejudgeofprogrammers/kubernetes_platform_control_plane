@@ -1,32 +1,34 @@
-package service
+package impl
 
 import (
 	"context"
 	"control_plane/internal/domain"
 	"control_plane/internal/orchestrator"
 	"control_plane/internal/repository"
+	"control_plane/internal/service/audit"
+	"control_plane/internal/service/config"
 	"time"
 
 	"github.com/google/uuid"
 )
 
 type configService struct {
-	clientRepo repository.ClientRepository
-	configRepo repository.ClientConfigRepository
-	audit      *AuditService
+	clientRepo   repository.ClientRepository
+	configRepo   repository.ClientConfigRepository
+	audit        audit.AuditService
 	orchestrator orchestrator.Orchestrator
 }
 
 func NewConfigService(
 	clientRepo repository.ClientRepository,
 	configRepo repository.ClientConfigRepository,
-	audit *AuditService,
+	audit audit.AuditService,
 	orchestrator orchestrator.Orchestrator,
-) ConfigService {
+) config.ConfigService {
 	return &configService{
-		clientRepo: clientRepo,
-		configRepo: configRepo,
-		audit:      audit,
+		clientRepo:   clientRepo,
+		configRepo:   configRepo,
+		audit:        audit,
 		orchestrator: orchestrator,
 	}
 }
