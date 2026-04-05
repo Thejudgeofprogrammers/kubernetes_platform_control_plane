@@ -15,7 +15,11 @@ import (
 
 func main() {
 	env := config.LoadEnv()
-	r := app.NewApp(env)
+	r, rec := app.NewApp(env)
+
+	ctxWorker, cancelWorker := context.WithCancel(context.Background())
+	go rec.Run(ctxWorker)
+
 
 	srv := &http.Server{
 		Addr: fmt.Sprintf(":%s", env.Port),
@@ -40,6 +44,8 @@ func main() {
 	<- stop
 
 	log.Println("shutdown signal received")
+
+	cancelWorker()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

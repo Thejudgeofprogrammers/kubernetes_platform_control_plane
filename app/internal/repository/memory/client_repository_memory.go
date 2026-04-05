@@ -4,7 +4,7 @@ import (
 	"context"
 	"control_plane/internal/domain"
 	"control_plane/internal/repository"
-	"errors"
+	"log/slog"
 	"sort"
 	"sync"
 )
@@ -12,11 +12,14 @@ import (
 type InMemoryClientRepository struct {
 	storage map[string]*domain.APIClient
 	mu      sync.RWMutex
+
+	log *slog.Logger
 }
 
-func NewInMemoryClientRepository() repository.ClientRepository {
+func NewInMemoryClientRepository(log *slog.Logger) repository.ClientRepository {
 	return &InMemoryClientRepository{
 		storage: make(map[string]*domain.APIClient),
+		log: log,
 	}
 }
 
@@ -25,10 +28,12 @@ func (r *InMemoryClientRepository) Create(ctx context.Context, client *domain.AP
 	defer r.mu.Unlock()
 
 	if _, exists := r.storage[client.ID]; exists {
-		return errors.New("client already exists")
+		r.log.Error("client already exists", "id", client.ID)
+		return domain.ErrClientAlredyExist
 	}
 
 	r.storage[client.ID] = client
+	r.log.Info("client created", "id", client.ID)
 	return nil
 }
 
@@ -38,9 +43,11 @@ func (r *InMemoryClientRepository) GetByID(ctx context.Context, id string) (*dom
 
 	client, ok := r.storage[id]
 	if !ok {
+		r.log.Error("client not found", "id", id)
 		return nil, domain.ErrClientNotFound
 	}
 
+	r.log.Info("client fetched", "id", id)
 	return client, nil
 }
 
@@ -48,7 +55,13 @@ func (r *InMemoryClientRepository) Update(ctx context.Context, client *domain.AP
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	if _, ok := r.storage[client.ID]; !ok {
+		r.log.Error("update failed: client not found", "id", client.ID)
+		return domain.ErrClientNotFound
+	}
+
 	r.storage[client.ID] = client
+	r.log.Info("client updated", "id", client.ID)
 	return nil
 }
 
@@ -57,9 +70,11 @@ func (r *InMemoryClientRepository) Delete(ctx context.Context, id string) error 
 	defer r.mu.Unlock()
 
 	if _, ok := r.storage[id]; !ok {
+		r.log.Error("delete failed: client not found", "id", id)
 		return domain.ErrClientNotFound
 	}
 	delete(r.storage, id)
+	r.log.Info("client deleted", "id", id)
 	return nil
 }
 
@@ -84,6 +99,7 @@ func (r *InMemoryClientRepository) List(ctx context.Context, status string, limi
 	total := len(result)
 
 	if offset >= len(result) {
+		r.log.Info("list clients: empty result due to offset", "offset", offset, "total", total)
 		return []*domain.APIClient{}, total, nil
 	}
 
@@ -92,6 +108,14 @@ func (r *InMemoryClientRepository) List(ctx context.Context, status string, limi
 	if limit > 0 && limit < len(result) {
 		result = result[:limit]
 	}
+
+	r.log.Info("list clients",
+		"status", status,
+		"limit", limit,
+		"offset", offset,
+		"returned", len(result),
+		"total", total,
+	)
 
 	return result, total, nil
 }

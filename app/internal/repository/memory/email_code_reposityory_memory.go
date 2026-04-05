@@ -4,7 +4,7 @@ import (
 	"context"
 	"control_plane/internal/domain"
 	"control_plane/internal/repository"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -12,11 +12,14 @@ import (
 type InMemoryEmailCodeRepository struct {
 	mu      sync.RWMutex
 	storage map[string]*domain.EmailCode // key = email
+
+	log *slog.Logger
 }
 
-func NewInMemoryEmailCodeRepository() repository.EmailCodeRepository {
+func NewInMemoryEmailCodeRepository(log *slog.Logger) repository.EmailCodeRepository {
 	return &InMemoryEmailCodeRepository{
 		storage: make(map[string]*domain.EmailCode),
+		log:     log,
 	}
 }
 
@@ -25,7 +28,12 @@ func (r *InMemoryEmailCodeRepository) Save(ctx context.Context, code *domain.Ema
 	defer r.mu.Unlock()
 
 	r.storage[code.Email] = code
-	log.Println("code:", code)
+
+	r.log.Info("email code saved",
+		"email", code.Email,
+		"expires_at", code.ExpiresAt,
+	)
+
 	return nil
 }
 
@@ -35,6 +43,9 @@ func (r *InMemoryEmailCodeRepository) Get(ctx context.Context, email string) (*d
 	r.mu.RUnlock()
 
 	if !ok {
+		r.log.Error("code not found",
+			"email", email,
+		)
 		return nil, domain.ErrCodeNotFound
 	}
 
@@ -42,10 +53,21 @@ func (r *InMemoryEmailCodeRepository) Get(ctx context.Context, email string) (*d
 		r.mu.Lock()
 		delete(r.storage, email)
 		r.mu.Unlock()
+
+		r.log.Info("code expired and deleted",
+			"email", email,
+		)
+
 		return nil, domain.ErrCodeExpired
 	}
 
-	return code, nil
+	copyCode := *code
+
+	r.log.Info("code fetched",
+		"email", email,
+	)
+
+	return &copyCode, nil
 }
 
 func (r *InMemoryEmailCodeRepository) Delete(ctx context.Context, email string) error {
@@ -53,5 +75,10 @@ func (r *InMemoryEmailCodeRepository) Delete(ctx context.Context, email string) 
 	defer r.mu.Unlock()
 
 	delete(r.storage, email)
+
+	r.log.Info("code deleted",
+		"email", email,
+	)
+
 	return nil
 }

@@ -4,17 +4,21 @@ import (
 	"context"
 	"control_plane/internal/domain"
 	"control_plane/internal/repository"
+	"log/slog"
 	"sync"
 )
 
 type InMemoryClientConfigRepository struct {
 	storage map[string]*domain.APIClientConfig
 	mu      sync.RWMutex
+
+	log *slog.Logger
 }
 
-func NewInMemoryClientConfigRepository() repository.ClientConfigRepository {
+func NewInMemoryClientConfigRepository(log *slog.Logger) repository.ClientConfigRepository {
 	return &InMemoryClientConfigRepository{
 		storage: make(map[string]*domain.APIClientConfig),
+		log:     log,
 	}
 }
 
@@ -23,6 +27,12 @@ func (r *InMemoryClientConfigRepository) Create(ctx context.Context, config *dom
 	defer r.mu.Unlock()
 
 	r.storage[config.ID] = config
+
+	r.log.Info("config created",
+		"id", config.ID,
+		"client_id", config.ClientID,
+	)
+
 	return nil
 }
 
@@ -32,8 +42,15 @@ func (r *InMemoryClientConfigRepository) GetByID(ctx context.Context, configID s
 
 	config, ok := r.storage[configID]
 	if !ok {
+		r.log.Error("config not found",
+			"id", configID,
+		)
 		return nil, domain.ErrConfigNotFound
 	}
+
+	r.log.Info("config fetched",
+		"id", configID,
+	)
 
 	return config, nil
 }
@@ -46,9 +63,15 @@ func (r *InMemoryClientConfigRepository) ListByClientID(ctx context.Context, cli
 
 	for _, config := range r.storage {
 		if config.ClientID == clientID {
-			result = append(result, config)
+			copyConfig := *config
+			result = append(result, &copyConfig)
 		}
 	}
+
+	r.log.Info("list configs by client",
+		"client_id", clientID,
+		"count", len(result),
+	)
 
 	return result, nil
 }
