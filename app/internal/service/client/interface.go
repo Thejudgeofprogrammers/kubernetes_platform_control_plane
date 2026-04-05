@@ -11,4 +11,5 @@ type ClientService interface {
 	GetByID(ctx context.Context, id string) (*domain.APIClient, error)
 	Restart(ctx context.Context, userID, id string, reason string) error
 	Delete(ctx context.Context, userID, id string) error
+	Start(ctx context.Context, clientID string) error
 }

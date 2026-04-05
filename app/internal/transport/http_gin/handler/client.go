@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"context"
 	"control_plane/internal/domain"
 	"control_plane/internal/service/client"
 	dto "control_plane/internal/transport/http_gin/dto/client"
 	"control_plane/internal/transport/http_gin/mapper"
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -14,11 +16,13 @@ import (
 
 type ClientHandler struct {
 	service client.ClientService
+	log     *slog.Logger
 }
 
-func NewClientHandler(s client.ClientService) *ClientHandler {
+func NewClientHandler(s client.ClientService, log *slog.Logger) *ClientHandler {
 	return &ClientHandler{
 		service: s,
+		log:     log,
 	}
 }
 
@@ -30,7 +34,11 @@ func getUserID(c *gin.Context) string {
 func (h *ClientHandler) List(c *gin.Context) {
 	var q dto.ListClientQuery
 
+	h.log.Info("http list clients started")
+
 	if err := c.ShouldBindQuery(&q); err != nil {
+		h.log.Warn("invalid query params")
+
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid query params",
 		})
@@ -49,11 +57,22 @@ func (h *ClientHandler) List(c *gin.Context) {
 	)
 
 	if err != nil {
+		h.log.Error("list clients failed",
+			"status", q.Status,
+			"error", err,
+		)
+
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to list clients",
 		})
 		return
 	}
+
+	h.log.Info("clients listed",
+		"count", len(list),
+		"total", total,
+		"status", q.Status,
+	)
 
 	c.JSON(http.StatusOK, dto.ListClientsResponse{
 		Items: mapper.ToClientSummaryList(list),
@@ -63,16 +82,21 @@ func (h *ClientHandler) List(c *gin.Context) {
 
 func (h *ClientHandler) Create(c *gin.Context) {
 	var req dto.CreateClientRequest
+	userID := c.GetString("user_id")
+
+	h.log.Info("http create client started",
+		"user_id", userID,
+	)
 
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("invalid create client body")
+
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "invalid request body",
 			"details": err.Error(),
 		})
 		return
 	}
-
-	userID := c.GetString("user_id")
 
 	client, err := h.service.Create(
 		c.Request.Context(),
@@ -83,11 +107,21 @@ func (h *ClientHandler) Create(c *gin.Context) {
 	)
 
 	if err != nil {
+		h.log.Error("create client failed",
+			"user_id", userID,
+			"error", err,
+		)
+
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to create client",
 		})
 		return
 	}
+
+	h.log.Info("client created",
+		"client_id", client.ID,
+		"user_id", userID,
+	)
 
 	resp := dto.ClientResponse{
 		ID:           client.ID,
@@ -103,7 +137,13 @@ func (h *ClientHandler) Create(c *gin.Context) {
 func (h *ClientHandler) GetByID(c *gin.Context) {
 	clientID := c.Param("client_id")
 
+	h.log.Info("http get client",
+		"client_id", clientID,
+	)
+
 	if clientID == "" {
+		h.log.Warn("missing client_id")
+
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "client id is required",
 		})
@@ -117,11 +157,21 @@ func (h *ClientHandler) GetByID(c *gin.Context) {
 
 	if err != nil {
 		if errors.Is(err, domain.ErrClientNotFound) {
+			h.log.Warn("client not found",
+				"client_id", clientID,
+			)
+
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "client not found",
 			})
 			return
 		}
+
+		h.log.Error("get client failed",
+			"client_id", clientID,
+			"error", err,
+		)
+
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to fetch client",
 		})
@@ -141,8 +191,16 @@ func (h *ClientHandler) GetByID(c *gin.Context) {
 
 func (h *ClientHandler) RestartById(c *gin.Context) {
 	clientID := c.Param("client_id")
+	userID := c.GetString("user_id")
+
+	h.log.Info("http restart client started",
+		"client_id", clientID,
+		"user_id", userID,
+	)
 
 	if clientID == "" {
+		h.log.Warn("missing client_id")
+
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "client id is required",
 		})
@@ -151,10 +209,13 @@ func (h *ClientHandler) RestartById(c *gin.Context) {
 
 	var req dto.RestartClientRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("invalid restart body",
+			"client_id", clientID,
+		)
+
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body"})
 		return
 	}
-	userID := c.GetString("user_id")
 
 	err := h.service.Restart(
 		c.Request.Context(),
@@ -165,6 +226,10 @@ func (h *ClientHandler) RestartById(c *gin.Context) {
 
 	if err != nil {
 		if errors.Is(err, domain.ErrClientNotFound) {
+			h.log.Warn("client not found",
+				"client_id", clientID,
+			)
+
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "client not found",
 			})
@@ -172,15 +237,30 @@ func (h *ClientHandler) RestartById(c *gin.Context) {
 		}
 
 		if errors.Is(err, domain.ErrInvalidStateTransition) {
+			h.log.Warn("invalid state transition",
+				"client_id", clientID,
+			)
+
 			c.JSON(http.StatusConflict, gin.H{"error": "invalid state transition"})
 			return
 		}
+
+		h.log.Error("restart failed",
+			"client_id", clientID,
+			"user_id", userID,
+			"error", err,
+		)
 
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to fetch restart",
 		})
 		return
 	}
+
+	h.log.Info("restart scheduled",
+		"client_id", clientID,
+		"user_id", userID,
+	)
 
 	resp := dto.ClientActionResponse{
 		ClientID: clientID,
@@ -193,15 +273,21 @@ func (h *ClientHandler) RestartById(c *gin.Context) {
 
 func (h *ClientHandler) DeleteById(c *gin.Context) {
 	clientID := c.Param("client_id")
+	userID := c.GetString("user_id")
+
+	h.log.Info("http delete client started",
+		"client_id", clientID,
+		"user_id", userID,
+	)
 
 	if clientID == "" {
+		h.log.Warn("missing client_id")
+
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "client id is required",
 		})
 		return
 	}
-
-	userID := c.GetString("user_id")
 
 	err := h.service.Delete(
 		c.Request.Context(),
@@ -211,17 +297,32 @@ func (h *ClientHandler) DeleteById(c *gin.Context) {
 
 	if err != nil {
 		if errors.Is(err, domain.ErrClientNotFound) {
+			h.log.Warn("client not found",
+				"client_id", clientID,
+			)
+
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "client not found",
 			})
 			return
 		}
 
+		h.log.Error("delete client failed",
+			"client_id", clientID,
+			"user_id", userID,
+			"error", err,
+		)
+
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to delete client",
 		})
 		return
 	}
+
+	h.log.Info("client delete scheduled",
+		"client_id", clientID,
+		"user_id", userID,
+	)
 
 	resp := dto.ClientActionResponse{
 		ClientID: clientID,
@@ -230,4 +331,38 @@ func (h *ClientHandler) DeleteById(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusAccepted, resp)
+}
+
+func (h *ClientHandler) StartByID(c *gin.Context) {
+	clientID := c.Param("client_id")
+	userID := c.GetString("user_id")
+
+	h.log.Info("http start client started",
+		"client_id", clientID,
+		"user_id", userID,
+	)
+
+	ctx := context.WithValue(c.Request.Context(), "userID", userID)
+
+	if err := h.service.Start(ctx, clientID); err != nil {
+		h.log.Warn("start client failed",
+			"client_id", clientID,
+			"user_id", userID,
+			"error", err,
+		)
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	h.log.Info("client start initiated",
+		"client_id", clientID,
+		"user_id", userID,
+	)
+
+	c.JSON(http.StatusAccepted, gin.H{
+		"status": "starting",
+	})
 }

@@ -37,7 +37,7 @@ func (c *APIClient) Transition(to ClientStatus) error {
 	switch c.status {
 
 	case ClientStatusCreated:
-		if to == ClientStatusRunning || to == ClientStatusDisabled {
+		if to == ClientStatusDeploying || to == ClientStatusDisabled {
 			c.status = to
 			return nil
 		}

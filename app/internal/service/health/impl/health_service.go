@@ -5,27 +5,76 @@ import (
 	"control_plane/internal/domain"
 	"control_plane/internal/repository"
 	health "control_plane/internal/service/health"
+	"log/slog"
 	"time"
 )
 
 type healthService struct {
 	repo repository.ClientHealthRepostiory
+	log  *slog.Logger
 }
 
-func NewHealthService(repo repository.ClientHealthRepostiory) health.HealthService {
-	return &healthService{repo: repo}
+func NewHealthService(repo repository.ClientHealthRepostiory, log *slog.Logger) health.HealthService {
+	return &healthService{
+		repo: repo,
+		log:  log,
+	}
 }
 
 func (s *healthService) Update(ctx context.Context, clientID string, status domain.HealthStatus, message string) error {
 	health := &domain.APIClientHealth{
-		ClientID: clientID,
-		Status: status,
+		ClientID:  clientID,
+		Status:    status,
 		LastCheck: time.Now(),
-		Message: message,
+		Message:   message,
 	}
-	return s.repo.Update(ctx, health)
+
+	s.log.Info("health update requested",
+		"client_id", clientID,
+		"status", status,
+	)
+
+	err := s.repo.Update(ctx, health)
+	if err != nil {
+		s.log.Error("health update failed",
+			"client_id", clientID,
+			"error", err,
+		)
+		return err
+	}
+
+	s.log.Info("health updated",
+		"client_id", clientID,
+	)
+
+	return nil
 }
 
 func (s *healthService) Get(ctx context.Context, clientID string) (*domain.APIClientHealth, error) {
-	return s.repo.GetByClientID(ctx, clientID)
+	s.log.Info("health get requested",
+		"client_id", clientID,
+	)
+
+	health, err := s.repo.GetByClientID(ctx, clientID)
+	if err != nil {
+		s.log.Error("health get failed",
+			"client_id", clientID,
+			"error", err,
+		)
+		return nil, err
+	}
+
+	if health == nil {
+		s.log.Info("health not found",
+			"client_id", clientID,
+		)
+		return nil, nil
+	}
+
+	s.log.Info("health fetched",
+		"client_id", clientID,
+		"status", health.Status,
+	)
+
+	return health, nil
 }

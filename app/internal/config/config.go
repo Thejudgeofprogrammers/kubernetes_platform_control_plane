@@ -21,6 +21,7 @@ type Config struct {
 	redisPassword   string
 	RedisDB         int
 	ExpireEmailCode int
+	Namespace       string
 }
 
 func LoadEnv() *Config {
@@ -53,6 +54,7 @@ func LoadEnv() *Config {
 		redisPassword:   getenv("REDIS_PASSWORD", "1984"),
 		RedisDB:         getenvInt("REDIS_DB", "0"),
 		ExpireEmailCode: getenvInt("EXPIRE_EMAIL_CODE", "300"),
+		Namespace:       getenv("NAMESPACE", "namespace"),
 	}
 
 	return config

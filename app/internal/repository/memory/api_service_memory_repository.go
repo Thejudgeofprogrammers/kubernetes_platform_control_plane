@@ -4,17 +4,21 @@ import (
 	"context"
 	"control_plane/internal/domain"
 	"control_plane/internal/repository"
+	"log/slog"
 	"sync"
 )
 
 type InMemoryAPIServiceRepository struct {
-	mu sync.RWMutex
+	mu      sync.RWMutex
 	storage map[string]*domain.APIService
+
+	log *slog.Logger
 }
 
-func NewInMemoryAPIServiceRepository() repository.APIServiceRepository {
+func NewInMemoryAPIServiceRepository(log *slog.Logger) repository.APIServiceRepository {
 	return &InMemoryAPIServiceRepository{
 		storage: make(map[string]*domain.APIService),
+		log:     log,
 	}
 }
 
@@ -23,6 +27,11 @@ func (r *InMemoryAPIServiceRepository) Create(ctx context.Context, service *doma
 	defer r.mu.Unlock()
 
 	r.storage[service.ID] = service
+
+	r.log.Info("api service created",
+		"id", service.ID,
+	)
+
 	return nil
 }
 
@@ -32,10 +41,19 @@ func (r *InMemoryAPIServiceRepository) GetByID(ctx context.Context, id string) (
 
 	service, ok := r.storage[id]
 	if !ok {
+		r.log.Error("api service not found",
+			"id", id,
+		)
 		return nil, domain.ErrClientNotFound
 	}
 
-	return service, nil
+	copyService := *service
+
+	r.log.Info("api service fetched",
+		"id", id,
+	)
+
+	return &copyService, nil
 }
 
 func (r *InMemoryAPIServiceRepository) List(ctx context.Context) ([]*domain.APIService, error) {
@@ -45,8 +63,13 @@ func (r *InMemoryAPIServiceRepository) List(ctx context.Context) ([]*domain.APIS
 	result := make([]*domain.APIService, 0, len(r.storage))
 
 	for _, s := range r.storage {
-		result = append(result, s)
+		copyService := *s
+		result = append(result, &copyService)
 	}
+
+	r.log.Info("list api services",
+		"count", len(result),
+	)
 
 	return result, nil
 }
@@ -55,6 +78,18 @@ func (r *InMemoryAPIServiceRepository) Delete(ctx context.Context, id string) er
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	if _, ok := r.storage[id]; !ok {
+		r.log.Error("delete failed: api service not found",
+			"id", id,
+		)
+		return domain.ErrClientNotFound
+	}
+
 	delete(r.storage, id)
+
+	r.log.Info("api service deleted",
+		"id", id,
+	)
+
 	return nil
 }

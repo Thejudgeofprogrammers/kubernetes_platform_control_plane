@@ -4,6 +4,7 @@ import (
 	"context"
 	"control_plane/internal/domain"
 	"control_plane/internal/repository"
+	"log/slog"
 	"sync"
 )
 
@@ -12,10 +13,14 @@ import (
 type InMemoryClientAccessRepository struct {
 	mu      sync.RWMutex
 	storage []*domain.AuthClientAccess
+
+	log *slog.Logger
 }
 
-func NewInMemoryClientAccessRepository() repository.ClientAccessRepository {
-	return &InMemoryClientAccessRepository{}
+func NewInMemoryClientAccessRepository(log *slog.Logger) repository.ClientAccessRepository {
+	return &InMemoryClientAccessRepository{
+		log: log,
+	}
 }
 
 func (r *InMemoryClientAccessRepository) Grant(ctx context.Context, access *domain.AuthClientAccess) error {
