@@ -78,3 +78,11 @@ func (s *healthService) Get(ctx context.Context, clientID string) (*domain.APICl
 
 	return health, nil
 }
+
+func (s *healthService) Set(clientID string, status domain.HealthStatus) {
+	s.repo.Set(clientID, domain.APIClientHealth{
+		ClientID:  clientID,
+		Status:    status,
+		LastCheck: time.Now(),
+	})
+}

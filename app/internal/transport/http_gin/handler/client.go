@@ -31,6 +31,17 @@ func getUserID(c *gin.Context) string {
 	return userID
 }
 
+// @Summary List clients
+// @Description Получить список клиентов с фильтрацией и пагинацией
+// @Tags clients
+// @Produce json
+// @Param status query string false "Client status"
+// @Param limit query int false "Limit"
+// @Param offset query int false "Offset"
+// @Success 200 {object} dto.ListClientsResponse
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /clients [get]
 func (h *ClientHandler) List(c *gin.Context) {
 	var q dto.ListClientQuery
 
@@ -80,6 +91,16 @@ func (h *ClientHandler) List(c *gin.Context) {
 	})
 }
 
+// @Summary Create API client
+// @Description Создание нового API клиента
+// @Tags clients
+// @Accept json
+// @Produce json
+// @Param request body dto.CreateClientRequest true "Client data"
+// @Success 201 {object} dto.ClientResponse
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /clients [post]
 func (h *ClientHandler) Create(c *gin.Context) {
 	var req dto.CreateClientRequest
 	userID := c.GetString("user_id")
@@ -134,6 +155,16 @@ func (h *ClientHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, resp)
 }
 
+// @Summary Get client by ID
+// @Description Получить клиента по ID
+// @Tags clients
+// @Produce json
+// @Param client_id path string true "Client ID"
+// @Success 200 {object} dto.ClientResponse
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /clients/{client_id} [get]
 func (h *ClientHandler) GetByID(c *gin.Context) {
 	clientID := c.Param("client_id")
 
@@ -189,6 +220,17 @@ func (h *ClientHandler) GetByID(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// @Summary Restart client
+// @Description Перезапуск клиента через обновление Deployment (rolling update)
+// @Tags clients
+// @Produce json
+// @Param client_id path string true "Client ID"
+// @Success 202 {object} dto.ClientActionResponse
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /clients/{client_id}/restart [post]
 func (h *ClientHandler) RestartById(c *gin.Context) {
 	clientID := c.Param("client_id")
 	userID := c.GetString("user_id")
@@ -207,21 +249,11 @@ func (h *ClientHandler) RestartById(c *gin.Context) {
 		return
 	}
 
-	var req dto.RestartClientRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		h.log.Warn("invalid restart body",
-			"client_id", clientID,
-		)
-
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body"})
-		return
-	}
-
 	err := h.service.Restart(
 		c.Request.Context(),
 		userID,
 		clientID,
-		req.Reason,
+		string(domain.ActionRestart),
 	)
 
 	if err != nil {
@@ -252,7 +284,7 @@ func (h *ClientHandler) RestartById(c *gin.Context) {
 		)
 
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to fetch restart",
+			"error": "failed to restart client",
 		})
 		return
 	}
@@ -271,6 +303,16 @@ func (h *ClientHandler) RestartById(c *gin.Context) {
 	c.JSON(http.StatusAccepted, resp)
 }
 
+// @Summary Delete client
+// @Description Удаление клиента
+// @Tags clients
+// @Produce json
+// @Param client_id path string true "Client ID"
+// @Success 202 {object} dto.ClientActionResponse
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /clients/{client_id}/delete [post]
 func (h *ClientHandler) DeleteById(c *gin.Context) {
 	clientID := c.Param("client_id")
 	userID := c.GetString("user_id")
@@ -333,6 +375,14 @@ func (h *ClientHandler) DeleteById(c *gin.Context) {
 	c.JSON(http.StatusAccepted, resp)
 }
 
+// @Summary Start client
+// @Description Запуск клиента
+// @Tags clients
+// @Produce json
+// @Param client_id path string true "Client ID"
+// @Success 202 {object} map[string]string
+// @Failure 400 {object} map[string]string
+// @Router /clients/{client_id}/start [post]
 func (h *ClientHandler) StartByID(c *gin.Context) {
 	clientID := c.Param("client_id")
 	userID := c.GetString("user_id")

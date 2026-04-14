@@ -3,7 +3,7 @@ package handler
 import (
 	"control_plane/internal/domain"
 	cfgService "control_plane/internal/service/config"
-	dto "control_plane/internal/transport/http_gin/dto/client"
+	configDTO "control_plane/internal/transport/http_gin/dto/config"
 	"control_plane/internal/transport/http_gin/mapper"
 	"errors"
 	"log/slog"
@@ -24,6 +24,12 @@ func NewConfigHandler(s cfgService.ConfigService, log *slog.Logger) *ConfigHandl
 	}
 }
 
+// @Summary List configs
+// @Tags configs
+// @Param client_id path string true "Client ID"
+// @Success 200 {array} dto.ConfigResponse
+// @Failure 404 {object} map[string]string
+// @Router /clients/{client_id}/configs [get]
 func (h *ConfigHandler) ListConfigs(c *gin.Context) {
 	clientID := c.Param("client_id")
 
@@ -63,7 +69,7 @@ func (h *ConfigHandler) ListConfigs(c *gin.Context) {
 		return
 	}
 
-	resp := make([]dto.ConfigResponse, 0, len(configs))
+	resp := make([]configDTO.ConfigResponse, 0, len(configs))
 	for _, cfg := range configs {
 		resp = append(resp, mapper.ToConfigResponse(cfg))
 	}
@@ -76,6 +82,15 @@ func (h *ConfigHandler) ListConfigs(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// @Summary Create config
+// @Tags configs
+// @Param client_id path string true "Client ID"
+// @Accept json
+// @Param request body dto.ClientConfigRequest true "Config data"
+// @Success 201 {object} dto.ConfigResponse
+// @Failure 400 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Router /clients/{client_id}/configs [post]
 func (h *ConfigHandler) CreateConfig(c *gin.Context) {
 	clientID := c.Param("client_id")
 	userID := c.GetString("user_id")
@@ -94,7 +109,7 @@ func (h *ConfigHandler) CreateConfig(c *gin.Context) {
 		return
 	}
 
-	var req dto.ClientConfigRequest
+	var req configDTO.ClientConfigRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.log.Warn("invalid create config body",
 			"client_id", clientID,
@@ -156,6 +171,15 @@ func (h *ConfigHandler) CreateConfig(c *gin.Context) {
 	c.JSON(http.StatusCreated, mapper.ToConfigResponse(config))
 }
 
+// @Summary Deploy config
+// @Description Активирует конфигурацию и делает rolling update
+// @Tags configs
+// @Param client_id path string true "Client ID"
+// @Param config_id path string true "Config ID"
+// @Success 202 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Router /clients/{client_id}/configs/{config_id}/deploy [post]
 func (h *ConfigHandler) Deploy(c *gin.Context) {
 	clientID := c.Param("client_id")
 	configID := c.Param("config_id")

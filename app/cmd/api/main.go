@@ -11,8 +11,15 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	_ "control_plane/docs"
 )
 
+// @title Control Plane API
+// @version 1.0
+// @description API для управления API-клиентами в Kubernetes
+// @host localhost:8000
+// @BasePath /api/v1
 func main() {
 	env := config.LoadEnv()
 	r, rec := app.NewApp(env)

@@ -1,0 +1,787 @@
+basePath: /api/v1
+definitions:
+  domain.APIClientHealth:
+    properties:
+      clientID:
+        type: string
+      lastCheck:
+        type: string
+      message:
+        type: string
+      status:
+        $ref: '#/definitions/domain.HealthStatus'
+    type: object
+  domain.AccessRole:
+    enum:
+    - owner
+    - operator
+    - viewer
+    type: string
+    x-enum-varnames:
+    - RoleOwner
+    - RoleOperator
+    - RoleViewer
+  domain.AuthTokens:
+    properties:
+      accessToken:
+        type: string
+      refreshToken:
+        type: string
+    type: object
+  domain.HealthStatus:
+    enum:
+    - healthy
+    - degraded
+    - unhealthy
+    type: string
+    x-enum-varnames:
+    - HealthHealthy
+    - HealthDegraded
+    - HealthUnhealthy
+  domain.User:
+    properties:
+      createdAt:
+        type: string
+      email:
+        type: string
+      fullName:
+        type: string
+      id:
+        type: string
+      role:
+        $ref: '#/definitions/domain.AccessRole'
+    type: object
+  dto.ClientActionResponse:
+    properties:
+      action:
+        type: string
+      client_id:
+        type: string
+      status:
+        type: string
+    type: object
+  dto.ClientConfigRequest:
+    properties:
+      auth_ref:
+        type: string
+      auth_type:
+        enum:
+        - none
+        - api_key
+        - bearer
+        type: string
+      headers:
+        additionalProperties:
+          type: string
+        type: object
+      retry_backoff:
+        maximum: 60000
+        minimum: 0
+        type: integer
+      retry_count:
+        maximum: 10
+        minimum: 0
+        type: integer
+      timeout_ms:
+        maximum: 60000
+        minimum: 0
+        type: integer
+      version:
+        type: string
+    required:
+    - auth_type
+    - version
+    type: object
+  dto.ClientResponse:
+    properties:
+      active_config_id:
+        type: string
+      api_service_id:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      status:
+        type: string
+    type: object
+  dto.ClientSummaryResponse:
+    properties:
+      api_service_id:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      status:
+        type: string
+    type: object
+  dto.ConfigResponse:
+    properties:
+      auth_ref:
+        type: string
+      auth_type:
+        type: string
+      client_id:
+        type: string
+      created_at:
+        type: string
+      created_by:
+        type: string
+      headers:
+        additionalProperties:
+          type: string
+        type: object
+      id:
+        type: string
+      retry_backoff:
+        type: integer
+      retry_count:
+        type: integer
+      timeout_ms:
+        type: integer
+      version:
+        type: string
+    type: object
+  dto.CreateClientRequest:
+    properties:
+      api_service_id:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+    required:
+    - name
+    type: object
+  dto.ListClientsResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/dto.ClientSummaryResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  dto.RefreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  dto.RegisterRequest:
+    properties:
+      email:
+        example: artemkotov78@mail.ru
+        type: string
+      full_name:
+        type: string
+    required:
+    - email
+    - full_name
+    type: object
+  dto.RequestCodeRequest:
+    properties:
+      email:
+        example: artemkotov78@mail.ru
+        type: string
+    required:
+    - email
+    type: object
+  dto.UpdateRoleRequest:
+    properties:
+      role:
+        type: string
+    required:
+    - role
+    type: object
+  dto.VerifyCodeRequest:
+    properties:
+      code:
+        type: string
+      email:
+        example: artemkotov78@mail.ru
+        type: string
+    required:
+    - code
+    - email
+    type: object
+host: localhost:8000
+info:
+  contact: {}
+  description: API для управления API-клиентами в Kubernetes
+  title: Control Plane API
+  version: "1.0"
+paths:
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Обновление access токена
+      parameters:
+      - description: Refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.AuthTokens'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Refresh token
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Регистрация пользователя
+      parameters:
+      - description: User data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register user
+      tags:
+      - auth
+  /auth/request-code:
+    post:
+      consumes:
+      - application/json
+      description: Отправка кода на email
+      parameters:
+      - description: Email
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RequestCodeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Request verification code
+      tags:
+      - auth
+  /auth/verify-code:
+    post:
+      consumes:
+      - application/json
+      description: Подтверждение кода и получение JWT токенов
+      parameters:
+      - description: Verification data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.VerifyCodeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.AuthTokens'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Verify code
+      tags:
+      - auth
+  /clients:
+    get:
+      description: Получить список клиентов с фильтрацией и пагинацией
+      parameters:
+      - description: Client status
+        in: query
+        name: status
+        type: string
+      - description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ListClientsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List clients
+      tags:
+      - clients
+    post:
+      consumes:
+      - application/json
+      description: Создание нового API клиента
+      parameters:
+      - description: Client data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateClientRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.ClientResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create API client
+      tags:
+      - clients
+  /clients/{client_id}:
+    get:
+      description: Получить клиента по ID
+      parameters:
+      - description: Client ID
+        in: path
+        name: client_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ClientResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get client by ID
+      tags:
+      - clients
+  /clients/{client_id}/configs:
+    get:
+      parameters:
+      - description: Client ID
+        in: path
+        name: client_id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.ConfigResponse'
+            type: array
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List configs
+      tags:
+      - configs
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Client ID
+        in: path
+        name: client_id
+        required: true
+        type: string
+      - description: Config data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ClientConfigRequest'
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.ConfigResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create config
+      tags:
+      - configs
+  /clients/{client_id}/configs/{config_id}/deploy:
+    post:
+      description: Активирует конфигурацию и делает rolling update
+      parameters:
+      - description: Client ID
+        in: path
+        name: client_id
+        required: true
+        type: string
+      - description: Config ID
+        in: path
+        name: config_id
+        required: true
+        type: string
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Deploy config
+      tags:
+      - configs
+  /clients/{client_id}/delete:
+    post:
+      description: Удаление клиента
+      parameters:
+      - description: Client ID
+        in: path
+        name: client_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/dto.ClientActionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete client
+      tags:
+      - clients
+  /clients/{client_id}/health:
+    get:
+      parameters:
+      - description: Client ID
+        in: path
+        name: client_id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.APIClientHealth'
+      summary: Get client health
+      tags:
+      - health
+  /clients/{client_id}/restart:
+    post:
+      description: Перезапуск клиента через обновление Deployment (rolling update)
+      parameters:
+      - description: Client ID
+        in: path
+        name: client_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/dto.ClientActionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Restart client
+      tags:
+      - clients
+  /clients/{client_id}/start:
+    post:
+      description: Запуск клиента
+      parameters:
+      - description: Client ID
+        in: path
+        name: client_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Start client
+      tags:
+      - clients
+  /users:
+    get:
+      description: Получить список пользователей
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              items:
+                $ref: '#/definitions/domain.User'
+              type: array
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List users
+      tags:
+      - users
+  /users/{user_id}:
+    delete:
+      description: Удаление пользователя
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete user
+      tags:
+      - users
+  /users/{user_id}/role:
+    patch:
+      consumes:
+      - application/json
+      description: Обновление роли пользователя
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      - description: Role data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update user role
+      tags:
+      - users
+  /users/me:
+    get:
+      description: Получить текущего пользователя
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.User'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get current user
+      tags:
+      - users
+swagger: "2.0"

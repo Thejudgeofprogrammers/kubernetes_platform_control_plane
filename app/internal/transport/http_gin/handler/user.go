@@ -2,6 +2,7 @@ package handler
 
 import (
 	"control_plane/internal/service/user"
+	authDTO "control_plane/internal/transport/http_gin/dto/auth"
 	"log/slog"
 	"net/http"
 
@@ -20,6 +21,13 @@ func NewUserHandler(s user.UserService, log *slog.Logger) *UserHandler {
 	}
 }
 
+// @Summary List users
+// @Description Получить список пользователей
+// @Tags users
+// @Produce json
+// @Success 200 {object} map[string][]domain.User
+// @Failure 500 {object} map[string]string
+// @Router /users [get]
 func (h *UserHandler) List(c *gin.Context) {
 	h.log.Info("http list users started")
 
@@ -44,6 +52,13 @@ func (h *UserHandler) List(c *gin.Context) {
 	})
 }
 
+// @Summary Delete user
+// @Description Удаление пользователя
+// @Tags users
+// @Param user_id path string true "User ID"
+// @Success 200 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /users/{user_id} [delete]
 func (h *UserHandler) Delete(c *gin.Context) {
 	userID := c.Param("user_id")
 	requestUserID := c.GetString("user_id")
@@ -61,7 +76,7 @@ func (h *UserHandler) Delete(c *gin.Context) {
 		)
 
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
+			"error": "delete user failed",
 		})
 		return
 	}
@@ -76,6 +91,16 @@ func (h *UserHandler) Delete(c *gin.Context) {
 	})
 }
 
+// @Summary Update user role
+// @Description Обновление роли пользователя
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param user_id path string true "User ID"
+// @Param request body dto.UpdateRoleRequest true "Role data"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} map[string]string
+// @Router /users/{user_id}/role [patch]
 func (h *UserHandler) UpdateRole(c *gin.Context) {
 	userID := c.Param("user_id")
 	requestUserID := c.GetString("user_id")
@@ -85,9 +110,7 @@ func (h *UserHandler) UpdateRole(c *gin.Context) {
 		"requested_by", requestUserID,
 	)
 
-	var req struct {
-		Role string `json:"role" binding:"required"`
-	}
+	var req authDTO.UpdateRoleRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.log.Warn("invalid update role body",
@@ -109,7 +132,7 @@ func (h *UserHandler) UpdateRole(c *gin.Context) {
 		)
 
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
+			"error": "update role failed",
 		})
 		return
 	}
@@ -125,6 +148,13 @@ func (h *UserHandler) UpdateRole(c *gin.Context) {
 	})
 }
 
+// @Summary Get current user
+// @Description Получить текущего пользователя
+// @Tags users
+// @Produce json
+// @Success 200 {object} domain.User
+// @Failure 401 {object} map[string]string
+// @Router /users/me [get]
 func (h *UserHandler) Me(c *gin.Context) {
 	userID := c.GetString("user_id")
 
@@ -140,7 +170,7 @@ func (h *UserHandler) Me(c *gin.Context) {
 		)
 
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": err.Error(),
+			"error": "get me failed",
 		})
 		return
 	}

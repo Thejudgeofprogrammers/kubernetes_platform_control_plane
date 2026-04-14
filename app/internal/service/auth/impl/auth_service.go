@@ -5,6 +5,7 @@ import (
 	"control_plane/internal/domain"
 	"control_plane/internal/repository"
 	"control_plane/internal/service/auth"
+	"control_plane/internal/service/email"
 	"control_plane/internal/service/jwt"
 	"control_plane/internal/service/refresh"
 	"fmt"
@@ -21,6 +22,7 @@ type authService struct {
 	codeRepo       repository.EmailCodeRepository
 	refreshService refresh.RefreshService
 	jwtService     jwt.JWTService
+	emailSender    email.EmailSender
 	expire         int
 	log            *slog.Logger
 }
@@ -30,6 +32,7 @@ func NewAuthService(
 	codeRepo repository.EmailCodeRepository,
 	refreshService refresh.RefreshService,
 	jwtService jwt.JWTService,
+	emailSender email.EmailSender,
 	exp int,
 	log *slog.Logger,
 ) auth.AuthService {
@@ -38,6 +41,7 @@ func NewAuthService(
 		codeRepo:       codeRepo,
 		refreshService: refreshService,
 		jwtService:     jwtService,
+		emailSender: 	emailSender,
 		expire:         exp,
 		log:            log,
 	}
@@ -181,9 +185,13 @@ func (s *authService) RequestCode(ctx context.Context, email string) error {
 		return err
 	}
 
-	s.log.Info("verification code generated",
-		"email", email,
-	)
+	if err := s.emailSender.Send(email, code); err != nil {
+		s.log.Error("failed to send email",
+			"email", email,
+			"error", err,
+		)
+		return err
+	}
 
 	return nil
 }

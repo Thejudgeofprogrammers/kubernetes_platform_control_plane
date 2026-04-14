@@ -2,12 +2,12 @@ package mapper
 
 import (
 	"control_plane/internal/domain"
-	dto "control_plane/internal/transport/http_gin/dto/client"
+	configDTO "control_plane/internal/transport/http_gin/dto/config"
 	"time"
 )
 
-func ToConfigResponse(c *domain.APIClientConfig) dto.ConfigResponse {
-	return dto.ConfigResponse{
+func ToConfigResponse(c *domain.APIClientConfig) configDTO.ConfigResponse {
+	return configDTO.ConfigResponse{
 		ID:           c.ID,
 		ClientID:     c.ClientID,
 		Version:      c.Version,

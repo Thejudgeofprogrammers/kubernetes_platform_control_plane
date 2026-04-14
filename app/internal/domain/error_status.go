@@ -16,3 +16,5 @@ var ErrEmptyUserID = errors.New("empty user id")
 var ErrUserAlreadyExists = errors.New("user already exists")
 var ErrCodeNotFound = errors.New("email code not found")
 var ErrCodeExpired = errors.New("email code expired")
+
+var ErrAPIServiceNotFound = errors.New("api service not found")
