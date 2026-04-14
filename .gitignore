@@ -1,2 +1,3 @@
 task.md
-scripts
+/scripts/
+/test-api-client

@@ -55,3 +55,14 @@ func (r *InMemoryClientHealthRepostiory) GetByClientID(ctx context.Context, clie
 
 	return &copyHealth, nil
 }
+
+func (r *InMemoryClientHealthRepostiory) Set(clientID string, health domain.APIClientHealth) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	
+	r.storage[clientID] = &health
+
+	r.log.Info("client health updated",
+		"client_id", health.ClientID,
+	)
+}

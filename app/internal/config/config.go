@@ -11,6 +11,7 @@ import (
 )
 
 type Config struct {
+	EnvFile         string
 	Port            string
 	VersionAPI      string
 	AllowForbidden  string
@@ -22,6 +23,21 @@ type Config struct {
 	RedisDB         int
 	ExpireEmailCode int
 	Namespace       string
+
+	SMTPHost string
+	SMTPPort string
+	SMTPUser string
+	SMTPPass string
+	SMTPFrom string
+
+	EmailAdmin    string
+	FullNameAdmin string
+
+	ImageAPIClient string
+
+	ProxyConnectTimeout string
+	ProxyReadTimeout    string
+	ProxySendTimeout    string
 }
 
 func LoadEnv() *Config {
@@ -44,6 +60,7 @@ func LoadEnv() *Config {
 	}
 
 	config := &Config{
+		EnvFile:         getenv("ENV_FILE", "dev"),
 		Port:            getenv("PORT", "8000"),
 		VersionAPI:      getenv("VERSION_API", "v1"),
 		AllowForbidden:  getenv("ALLOW_CHECK_403", "True"),
@@ -54,7 +71,22 @@ func LoadEnv() *Config {
 		redisPassword:   getenv("REDIS_PASSWORD", "1984"),
 		RedisDB:         getenvInt("REDIS_DB", "0"),
 		ExpireEmailCode: getenvInt("EXPIRE_EMAIL_CODE", "300"),
-		Namespace:       getenv("NAMESPACE", "namespace"),
+		Namespace:       getenv("NAMESPACE", "default"),
+
+		SMTPHost: getenv("SMTP_HOST", "smtp.mail.ru"),
+		SMTPPort: getenv("SMTP_PORT", "587"),
+		SMTPUser: getenv("SMTP_USER", "your@mail.ru"),
+		SMTPPass: getenv("SMTP_PASS", "app_password"),
+		SMTPFrom: getenv("SMTP_FROM", "your@mail.ru"),
+
+		EmailAdmin:    getenv("EMAIL_ADMIN", "temp@mail.ru"),
+		FullNameAdmin: getenv("FULL_NAME_ADMIN", "Ivan Ivanov Ivanovich"),
+
+		ImageAPIClient: getenv("IMAGE_API_CLIENT", "api-client-runtime"),
+
+		ProxyConnectTimeout: getenv("GLOBAL_PROXY_CONNECT_TIMEOUT", "30"),
+		ProxyReadTimeout:    getenv("GLOBAL_PROXY_READ_TIMEOUT", "120"),
+		ProxySendTimeout:    getenv("GLOBAL_PROXY_SEND_TIMEOUT", "120"),
 	}
 
 	return config

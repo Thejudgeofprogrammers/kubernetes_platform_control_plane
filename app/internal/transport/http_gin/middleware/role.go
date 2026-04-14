@@ -14,14 +14,13 @@ func RoleMiddleware(enabled string, allowedRoles ...string) gin.HandlerFunc {
 		}
 
 		role := ctx.GetString("role")
-
 		for _, r := range allowedRoles {
 			if role == r {
 				ctx.Next()
 				return
 			}
 		}
-		
+
 		ctx.AbortWithStatusJSON(403, gin.H{
 			"error": "forbidden",
 		})

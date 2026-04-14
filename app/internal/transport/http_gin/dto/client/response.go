@@ -45,3 +45,4 @@ type ConfigResponse struct {
 	CreatedAt    string            `json:"created_at"`
 	CreatedBy    string            `json:"created_by"`
 }
+

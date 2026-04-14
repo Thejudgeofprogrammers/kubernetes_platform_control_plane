@@ -2,6 +2,7 @@ package handler
 
 import (
 	"control_plane/internal/service/auth"
+	authDTO "control_plane/internal/transport/http_gin/dto/auth"
 	"log/slog"
 	"net/http"
 
@@ -20,11 +21,18 @@ func NewAuthHandler(s auth.AuthService, log *slog.Logger) *AuthHandler {
 	}
 }
 
+// @Summary Register user
+// @Description Регистрация пользователя
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.RegisterRequest true "User data"
+// @Success 201 {object} map[string]string
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /auth/register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
-	var req struct {
-		Email    string `json:"email" binding:"required,email"`
-		FullName string `json:"full_name" binding:"required"`
-	}
+	var req authDTO.RegisterRequest
 
 	h.log.Info("http register started")
 
@@ -62,10 +70,18 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	})
 }
 
+// @Summary Request verification code
+// @Description Отправка кода на email
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.RequestCodeRequest true "Email"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /auth/request-code [post]
 func (h *AuthHandler) RequestCode(c *gin.Context) {
-	var req struct {
-		Email string `json:"email" binding:"required,email"`
-	}
+	var req authDTO.RequestCodeRequest
 
 	h.log.Info("http request code started")
 
@@ -100,11 +116,18 @@ func (h *AuthHandler) RequestCode(c *gin.Context) {
 	})
 }
 
+// @Summary Verify code
+// @Description Подтверждение кода и получение JWT токенов
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.VerifyCodeRequest true "Verification data"
+// @Success 200 {object} domain.AuthTokens
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Router /auth/verify-code [post]
 func (h *AuthHandler) VerifyCode(c *gin.Context) {
-	var req struct {
-		Email string `json:"email"`
-		Code  string `json:"code"`
-	}
+	var req authDTO.VerifyCodeRequest
 
 	h.log.Info("http verify code started")
 
@@ -138,13 +161,24 @@ func (h *AuthHandler) VerifyCode(c *gin.Context) {
 		"email", req.Email,
 	)
 
-	c.JSON(http.StatusOK, tokens)
+	c.JSON(http.StatusOK, authDTO.AuthResponse{
+		AccessToken:  tokens.AccessToken,
+		RefreshToken: tokens.RefreshToken,
+	})
 }
 
+// @Summary Refresh token
+// @Description Обновление access токена
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.RefreshRequest true "Refresh token"
+// @Success 200 {object} domain.AuthTokens
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Router /auth/refresh [post]
 func (h *AuthHandler) Refresh(c *gin.Context) {
-	var req struct {
-		RefreshToken string `json:"refresh_token"`
-	}
+	var req authDTO.RefreshRequest
 
 	h.log.Info("http refresh started")
 
@@ -173,5 +207,8 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 
 	h.log.Info("refresh success")
 
-	c.JSON(http.StatusOK, tokens)
+	c.JSON(http.StatusOK, authDTO.AuthResponse{
+		AccessToken:  tokens.AccessToken,
+		RefreshToken: tokens.RefreshToken,
+	})
 }

@@ -140,21 +140,10 @@ func (s *clientService) Restart(ctx context.Context, userID, id, reason string) 
 		return err
 	}
 
-	if err := client.Transition(domain.ClientStatusRestarting); err != nil {
-		s.log.Error("invalid state transition",
-			"client_id", id,
-			"error", err,
-		)
-		return err
-	}
-
-	if err := s.repo.Update(ctx, client); err != nil {
-		s.log.Error("failed to update client",
-			"client_id", id,
-			"error", err,
-		)
-		return err
-	}
+	s.log.Info("client found",
+		"client_id", client.ID,
+		"status", client.GetStatus(),
+	)
 
 	action, err := s.actionSrv.Create(ctx, id, userID, domain.ActionRestart)
 	if err != nil {
