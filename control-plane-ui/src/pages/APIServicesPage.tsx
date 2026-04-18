@@ -7,6 +7,7 @@ import Input from "../shared/ui/Input";
 import Button from "../shared/ui/Button";
 import Layout from "../shared/ui/Layout";
 import Select from "../shared/ui/Select";
+import { Link } from "react-router-dom";
 
 export default function APIServicesPage() {
   const { data: services = [], isLoading } = useAPIServices();
@@ -65,8 +66,11 @@ export default function APIServicesPage() {
 
       {services.map((s) => (
         <Card key={s.id}>
-          <h3>{s.name}</h3>
-          <p>{s.base_url}</p>
+          <h3>
+            <Link to={`/api-services/${s.id}`}>{s.name}</Link>
+          </h3>
+          <p>BaseURL: {s.base_url}</p>
+          <p>Protocol: {s.protocol}</p>
 
           <Button
             variant="danger"

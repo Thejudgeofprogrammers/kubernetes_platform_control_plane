@@ -93,3 +93,23 @@ func (r *InMemoryAPIServiceRepository) Delete(ctx context.Context, id string) er
 
 	return nil
 }
+
+func (r *InMemoryAPIServiceRepository) Update(
+	ctx context.Context,
+	service *domain.APIService,
+) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	_, ok := r.storage[service.ID]
+	if !ok {
+		return domain.ErrAPIServiceNotFound
+	}
+
+	copyService := *service
+	r.storage[service.ID] = &copyService
+
+	r.log.Info("api service updated", "id", service.ID)
+
+	return nil
+}

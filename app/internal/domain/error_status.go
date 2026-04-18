@@ -18,3 +18,4 @@ var ErrCodeNotFound = errors.New("email code not found")
 var ErrCodeExpired = errors.New("email code expired")
 
 var ErrAPIServiceNotFound = errors.New("api service not found")
+var ErrDeleteConfig = errors.New("cannot delete active config")

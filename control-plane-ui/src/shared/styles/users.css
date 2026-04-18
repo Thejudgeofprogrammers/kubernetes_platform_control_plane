@@ -1,0 +1,40 @@
+.users-page {
+  padding: 24px;
+  background: #f9fafb;
+  min-height: 100vh;
+}
+
+.title {
+  font-size: 28px;
+  margin-bottom: 20px;
+}
+
+.card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.users-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.users-table th {
+  text-align: left;
+  padding: 12px;
+  color: #666;
+  font-weight: 500;
+  border-bottom: 1px solid #eee;
+}
+
+.users-table td {
+  padding: 12px;
+  border-bottom: 1px solid #f1f1f1;
+}
+
+.users-table tr:hover {
+  background: #fafafa;
+}

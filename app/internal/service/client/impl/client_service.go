@@ -9,6 +9,7 @@ import (
 	"control_plane/internal/service/audit"
 	"control_plane/internal/service/client"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -19,6 +20,7 @@ type clientService struct {
 	audit      audit.AuditService
 	configRepo repository.ClientConfigRepository
 	actionSrv  action.ActionService
+	actionRepo repository.ClientActionRepository
 	log        *slog.Logger
 }
 
@@ -28,6 +30,7 @@ func NewClientService(
 	audit audit.AuditService,
 	configRepo repository.ClientConfigRepository,
 	actionSrv action.ActionService,
+	actionRepo repository.ClientActionRepository,
 	log *slog.Logger,
 ) client.ClientService {
 	return &clientService{
@@ -36,6 +39,7 @@ func NewClientService(
 		orch:       orch,
 		configRepo: configRepo,
 		actionSrv:  actionSrv,
+		actionRepo: actionRepo,
 		log:        log,
 	}
 }
@@ -314,6 +318,55 @@ func (s *clientService) Start(ctx context.Context, clientID string) error {
 
 	s.log.Info("client started",
 		"client_id", clientID,
+	)
+
+	return nil
+}
+
+func (s *clientService) Stop(
+	ctx context.Context,
+	clientID string,
+) error {
+
+	userID, _ := ctx.Value("userID").(string)
+
+	s.log.Info("stop client started",
+		"client_id", clientID,
+		"user_id", userID,
+	)
+
+	client, err := s.repo.GetByID(ctx, clientID)
+	if err != nil {
+		return err
+	}
+
+	if !client.CanStop() {
+		return domain.ErrInvalidStateTransition
+	}
+
+	if err := client.Transition(domain.ClientStatusStopping); err != nil {
+		return err
+	}
+
+	if err := s.repo.Update(ctx, client); err != nil {
+		return err
+	}
+
+	action := &domain.APIClientAction{
+		ID:        uuid.NewString(),
+		ClientID:  clientID,
+		UserID:    userID,
+		Type:      domain.ActionStop,
+		CreatedAt: time.Now(),
+	}
+
+	if err := s.actionRepo.Create(ctx, action); err != nil {
+		return err
+	}
+
+	s.log.Info("stop action created",
+		"client_id", clientID,
+		"action_id", action.ID,
 	)
 
 	return nil

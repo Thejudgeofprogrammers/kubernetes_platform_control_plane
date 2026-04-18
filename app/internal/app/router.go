@@ -13,6 +13,7 @@ import (
 	reconciler_impl "control_plane/internal/reconciler/impl"
 	"control_plane/internal/repository/memory"
 	action "control_plane/internal/service/action/impl"
+	apiservice "control_plane/internal/service/api_service/impl"
 	audit "control_plane/internal/service/audit/impl"
 	auth "control_plane/internal/service/auth/impl"
 	client "control_plane/internal/service/client/impl"
@@ -22,9 +23,9 @@ import (
 	emailMock "control_plane/internal/service/email/mock"
 	health "control_plane/internal/service/health/impl"
 	jwt "control_plane/internal/service/jwt/impl"
+	metric "control_plane/internal/service/metric/impl"
 	refresh "control_plane/internal/service/refresh/impl"
 	user "control_plane/internal/service/user/impl"
-	apiservice "control_plane/internal/service/api_service/impl"
 	"time"
 
 	"control_plane/internal/transport/http_gin/handler"
@@ -48,6 +49,7 @@ func RegisterRoutes(r *gin.Engine, env *config.Config) reconciler.ReconcilerServ
 	userRepository := memory.NewInMemoryUserRepository(log)
 	codeRepository := memory.NewInMemoryEmailCodeRepository(log)
 	healthRepository := memory.NewInMemoryClientHealthRepository(log)
+	metricRepository := memory.NewMetricsInMemory(env.MaxMetricsPerClient)
 
 	// redis
 	rdb := redis.NewRedisClient(env.RedisAddr, env.GetRedisPassword(), env.RedisDB)
@@ -56,6 +58,7 @@ func RegisterRoutes(r *gin.Engine, env *config.Config) reconciler.ReconcilerServ
 	auditService := audit.NewAuditService(actionRepository, log)
 	apiServiceService := apiservice.NewAPIServiceService(apiServiceRepository, log)
 	healthService := health.NewHealthService(healthRepository, log)
+	metricService := metric.NewMetricsService()
 
 	clientset, err := k8s.NewClient()
 	var orchestrator orchestrator.Orchestrator
@@ -89,10 +92,21 @@ func RegisterRoutes(r *gin.Engine, env *config.Config) reconciler.ReconcilerServ
 		emailSender = emailMock.NewEmailSenderMock(log)
 	}
 
-	rec := reconciler_impl.NewReconciler(actionRepository, clientRepository, apiServiceRepository, orchestrator, configRepository, log, healthService)
-	configService := cfgService.NewConfigService(clientRepository, configRepository, auditService, orchestrator, log)
+	rec := reconciler_impl.NewReconciler(
+		actionRepository, 
+		clientRepository, 
+		apiServiceRepository, 
+		orchestrator, 
+		configRepository, 
+		log, 
+		healthService, 
+		metricRepository, 
+		metricService,
+		env.BaseURLIngress,
+	)
+	configService := cfgService.NewConfigService(clientRepository, configRepository, auditService, actionRepository, orchestrator, log)
 	actionService := action.NewActionService(actionRepository, log)
-	clientService := client.NewClientService(clientRepository, orchestrator, auditService, configRepository, actionService, log)
+	clientService := client.NewClientService(clientRepository, orchestrator, auditService, configRepository, actionService, actionRepository, log)
 	jwtService := jwt.NewJWTService(env.GetSecret(), env.Exp, log)
 	refreshService := refresh.NewRefreshService(rdb, env.Ref_time, log)
 	authService := auth.NewAuthService(userRepository, codeRepository, refreshService, jwtService, emailSender, env.ExpireEmailCode, log)
@@ -125,12 +139,20 @@ func RegisterRoutes(r *gin.Engine, env *config.Config) reconciler.ReconcilerServ
 	api.POST("/auth/refresh", authHandler.Refresh)
 
 	//metrics
-	api.POST("/clients/:id/metrics")
+	api.POST("/clients/:client_id/metrics")
 
 	// user
 	protected.GET("/users", userHandler.List)
-	protected.DELETE("/users/:user_id", userHandler.Delete)
-	protected.PATCH("/users/:user_id/role", userHandler.UpdateRole)
+	protected.DELETE(
+		"/users/:user_id", 
+		middleware.RoleMiddleware(env.AllowForbidden, string(domain.RoleOwner)),
+		userHandler.Delete,
+	)
+	protected.PATCH(
+		"/users/:user_id/role",
+		middleware.RoleMiddleware(env.AllowForbidden, string(domain.RoleOwner)), 
+		userHandler.UpdateRole,
+	)
 	protected.GET("/users/me", userHandler.Me)
 
 	// health
@@ -143,11 +165,18 @@ func RegisterRoutes(r *gin.Engine, env *config.Config) reconciler.ReconcilerServ
 
 	// api-service
 	protected.GET("/api-services", apiServiceHandler.List)
+	protected.GET("/api-services/:id", apiServiceHandler.GetByID)
 
 	protected.POST(
 		"/api-services",
 		middleware.RoleMiddleware(env.AllowForbidden, string(domain.RoleOwner)),
 		apiServiceHandler.Create,
+	)
+
+	protected.PUT(
+		"/api-services/:id",
+		middleware.RoleMiddleware(env.AllowForbidden, string(domain.RoleOwner)),
+		apiServiceHandler.Update,
 	)
 
 	protected.DELETE(
@@ -176,16 +205,35 @@ func RegisterRoutes(r *gin.Engine, env *config.Config) reconciler.ReconcilerServ
 		middleware.RoleMiddleware(env.AllowForbidden, string(domain.RoleOwner)),
 		configHandler.CreateConfig,
 	)
+
 	protected.POST(
 		"/clients/:client_id/configs/:config_id/deploy",
 		middleware.RoleMiddleware(env.AllowForbidden, string(domain.RoleOwner)),
 		configHandler.Deploy,
 	)
 
+	protected.PUT(
+		"/clients/:client_id/configs/:config_id/update",
+		middleware.RoleMiddleware(env.AllowForbidden, string(domain.RoleOwner)),
+		configHandler.Update,
+	)
+
+	protected.DELETE(
+		"/clients/:client_id/configs/:config_id/delete",
+		middleware.RoleMiddleware(env.AllowForbidden, string(domain.RoleOwner)),
+		configHandler.Delete,
+	)
+
 	protected.POST(
 		"/clients/:client_id/start",
 		middleware.RoleMiddleware(env.AllowForbidden, string(domain.RoleOwner)),
 		clientHandler.StartByID,
+	)
+
+	protected.POST(
+		"/clients/:client_id/stop",
+		middleware.RoleMiddleware(env.AllowForbidden, string(domain.RoleOwner)),
+		clientHandler.StopByID,
 	)
 
 	return rec

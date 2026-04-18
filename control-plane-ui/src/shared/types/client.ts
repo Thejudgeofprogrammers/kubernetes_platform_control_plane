@@ -9,6 +9,7 @@ export type ClientStatus =
 export interface APIClient {
   id: string;
   name: string;
+  description?: string;
   status: ClientStatus;
   api_service_id: string;
   activeConfigId?: string;

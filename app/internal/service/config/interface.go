@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"control_plane/internal/domain"
+	configDTO "control_plane/internal/transport/http_gin/dto/config"
 )
 
 type ConfigService interface {
@@ -30,4 +31,18 @@ type ConfigService interface {
 		clientID string,
 		configID string,
 	) error
+
+	Delete(
+		ctx context.Context,
+		clientID string,
+		configID string,
+	) error
+
+	Update(
+		ctx context.Context,
+		userID string,
+		clientID string,
+		configID string,
+		req configDTO.ClientConfigRequest,
+	) (*domain.APIClientConfig, error)
 }

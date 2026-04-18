@@ -7,10 +7,9 @@ import (
 	"control_plane/internal/reconciler"
 	"control_plane/internal/repository"
 	health "control_plane/internal/service/health"
+	metics "control_plane/internal/service/metric"
 	"log"
 	"log/slog"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -22,6 +21,9 @@ type reconcilerService struct {
 	configRepo     repository.ClientConfigRepository
 	log            *slog.Logger
 	healthSrv      health.HealthService
+	metricsRepo    repository.MetricsRepository
+	metricsService metics.MetricsService
+	baseURL string
 }
 
 func NewReconciler(
@@ -32,6 +34,9 @@ func NewReconciler(
 	configRepo repository.ClientConfigRepository,
 	log *slog.Logger,
 	healthS health.HealthService,
+	metricsRepo    repository.MetricsRepository,
+	metricsService metics.MetricsService,
+	baseURL string,
 ) reconciler.ReconcilerService {
 	return &reconcilerService{
 		actionRepo:     actionRepo,
@@ -41,6 +46,9 @@ func NewReconciler(
 		configRepo:     configRepo,
 		log:            log,
 		healthSrv:      healthS,
+		metricsRepo:    metricsRepo,
+		metricsService: metricsService,
+		baseURL: baseURL,
 	}
 }
 
@@ -112,6 +120,22 @@ func (r *reconcilerService) handleAction(ctx context.Context, action *domain.API
 	}
 
 	switch action.Type {
+
+	case domain.ActionStop:
+		r.log.Info("action stop",
+			"client_id", client.ID,
+		)
+
+		err = r.orchestrator.Delete(ctx, client.ID)
+
+		if err == nil {
+			if err2 := client.Transition(domain.ClientStatusStopped); err2 != nil {
+				r.log.Warn("failed to transition to stopped",
+					"client_id", client.ID,
+					"error", err2,
+				)
+			}
+		}
 
 	case domain.ActionRestart:
 		r.log.Info("action restart",
@@ -236,6 +260,15 @@ func (r *reconcilerService) Start(ctx context.Context) {
 			}
 
 			for _, c := range clients {
+				metrics, err := r.metricsService.Collect(ctx, r.baseURL, c.ID)
+				if err != nil {
+					continue
+				}
+
+				for _, m := range metrics {
+					_ = r.metricsRepo.Save(ctx, m)
+				}
+
 				r.orchestrator.CheckHealth(ctx, c.ID)
 
 				health, err := r.healthSrv.Get(ctx, c.ID)
@@ -278,35 +311,4 @@ func (r *reconcilerService) Start(ctx context.Context) {
 			time.Sleep(5 * time.Second)
 		}
 	}()
-}
-
-func ParseMetrics(raw string, clientID string) []domain.Metric {
-	lines := strings.Split(raw, "\n")
-	var result []domain.Metric
-
-	for _, line := range lines {
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-
-		parts := strings.Split(line, " ")
-		if len(parts) != 2 {
-			continue
-		}
-
-		name := parts[0]
-		value, err := strconv.ParseFloat(parts[1], 64)
-		if err != nil {
-			continue
-		}
-
-		result = append(result, domain.Metric{
-			ClientID:  clientID,
-			Name:      name,
-			Value:     value,
-			CreatedAt: time.Now(),
-		})
-	}
-
-	return result
 }

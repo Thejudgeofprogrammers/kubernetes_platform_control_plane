@@ -135,3 +135,25 @@ func (s *APIServiceServiceImpl) GetByID(
 
     return apiService, nil
 }
+
+func (s *APIServiceServiceImpl) Update(
+	ctx context.Context,
+	id, name, baseURL, protocol string,
+) (*domain.APIService, error) {
+
+	apiService, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	apiService.Name = name
+	apiService.BaseURL = baseURL
+	apiService.Protocol = protocol
+
+	if err := s.repo.Update(ctx, apiService); err != nil {
+		return nil, err
+	}
+
+	return apiService, nil
+}
+

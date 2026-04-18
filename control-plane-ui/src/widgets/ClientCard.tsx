@@ -19,9 +19,12 @@ export default function ClientCard({ client }: Props) {
     await api.post(`/clients/${client.id}/restart`);
     queryClient.invalidateQueries({ queryKey: ["clients"] });
   };
-
+  const canDelete = client.status !== "deleting";
   const remove = async () => {
+    if (!confirm(`Delete client "${client.name}"?`)) return;
+
     await api.post(`/clients/${client.id}/delete`);
+
     queryClient.invalidateQueries({ queryKey: ["clients"] });
   };
 
@@ -65,8 +68,12 @@ export default function ClientCard({ client }: Props) {
         Restart
         </Button>
         {isOwner && (
-        <Button onClick={remove} variant="danger">
-            Delete
+        <Button
+          onClick={remove}
+          variant="danger"
+          disabled={!canDelete}
+        >
+          Delete
         </Button>
         )}
       </div>

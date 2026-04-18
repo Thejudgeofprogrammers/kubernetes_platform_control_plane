@@ -4,7 +4,8 @@ import "time"
 
 type Metric struct {
 	ClientID  string
-	Name      string
-	Value     float64
+	Requests  int64
+	Errors    int64
+	Latency   int64
 	CreatedAt time.Time
 }

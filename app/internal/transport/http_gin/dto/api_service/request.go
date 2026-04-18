@@ -5,3 +5,9 @@ type CreateAPIServiceRequest struct {
 	BaseURL  string `json:"base_url" binding:"required"`
 	Protocol string `json:"protocol" binding:"required"`
 }
+
+type UpdateAPIServiceRequest struct {
+	Name     string `json:"name"`
+	BaseURL  string `json:"base_url"`
+	Protocol string `json:"protocol"`
+}
