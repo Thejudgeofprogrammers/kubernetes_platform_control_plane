@@ -416,3 +416,45 @@ func (h *ClientHandler) StartByID(c *gin.Context) {
 		"status": "starting",
 	})
 }
+
+// @Summary Stop client
+// @Description Остановка клиента
+// @Tags clients
+// @Produce json
+// @Param client_id path string true "Client ID"
+// @Success 202 {object} map[string]string
+// @Failure 400 {object} map[string]string
+// @Router /clients/{client_id}/stop [post]
+func (h *ClientHandler) StopByID(c *gin.Context) {
+	clientID := c.Param("client_id")
+	userID := c.GetString("user_id")
+
+	h.log.Info("http stop client started",
+		"client_id", clientID,
+		"user_id", userID,
+	)
+
+	ctx := context.WithValue(c.Request.Context(), "userID", userID)
+
+	if err := h.service.Stop(ctx, clientID); err != nil {
+		h.log.Warn("stop client failed",
+			"client_id", clientID,
+			"user_id", userID,
+			"error", err,
+		)
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	h.log.Info("client stop initiated",
+		"client_id", clientID,
+		"user_id", userID,
+	)
+
+	c.JSON(http.StatusAccepted, gin.H{
+		"status": "stopping",
+	})
+}

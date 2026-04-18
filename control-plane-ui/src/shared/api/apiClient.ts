@@ -70,3 +70,9 @@ api.interceptors.response.use(
     return Promise.reject(message);
   }
 );
+
+export const deleteClient = async (clientId: string) => {
+    if (!confirm("Delete client?")) return;
+
+    await api.post(`/clients/${clientId}/delete`);
+};

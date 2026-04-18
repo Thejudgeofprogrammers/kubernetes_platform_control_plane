@@ -52,7 +52,8 @@ func (r *InMemoryClientConfigRepository) GetByID(ctx context.Context, configID s
 		"id", configID,
 	)
 
-	return config, nil
+	copyConfig := *config
+	return &copyConfig, nil
 }
 
 func (r *InMemoryClientConfigRepository) ListByClientID(ctx context.Context, clientID string) ([]*domain.APIClientConfig, error) {
@@ -75,3 +76,28 @@ func (r *InMemoryClientConfigRepository) ListByClientID(ctx context.Context, cli
 
 	return result, nil
 }
+
+func (r *InMemoryClientConfigRepository) Delete(
+	ctx context.Context,
+	configID string,
+) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	_, ok := r.storage[configID]
+	if !ok {
+		r.log.Error("delete failed: config not found",
+			"id", configID,
+		)
+		return domain.ErrConfigNotFound
+	}
+
+	delete(r.storage, configID)
+
+	r.log.Info("config deleted",
+		"id", configID,
+	)
+
+	return nil
+}
+

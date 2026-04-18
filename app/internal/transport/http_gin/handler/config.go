@@ -247,3 +247,164 @@ func (h *ConfigHandler) Deploy(c *gin.Context) {
 		"status":    string(domain.ClientStatusDeploying),
 	})
 }
+
+// @Summary Delete config
+// @Tags configs
+// @Param client_id path string true "Client ID"
+// @Param config_id path string true "Config ID"
+// @Success 204
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Router /clients/{client_id}/configs/{config_id}/delete [delete]
+func (h *ConfigHandler) Delete(c *gin.Context) {
+	clientID := c.Param("client_id")
+	configID := c.Param("config_id")
+
+	h.log.Info("http delete config started",
+		"client_id", clientID,
+		"config_id", configID,
+	)
+
+	if clientID == "" || configID == "" {
+		h.log.Warn("missing client_id or config_id")
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "client id and config id are required",
+		})
+		return
+	}
+
+	err := h.service.Delete(
+		c.Request.Context(),
+		clientID,
+		configID,
+	)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, domain.ErrClientNotFound):
+			h.log.Warn("client not found",
+				"client_id", clientID,
+			)
+
+			c.JSON(http.StatusNotFound, gin.H{"error": "client not found"})
+		case errors.Is(err, domain.ErrConfigNotFound):
+			h.log.Warn("config not found",
+				"config_id", configID,
+			)
+
+			c.JSON(http.StatusNotFound, gin.H{"error": "config not found"})
+		case errors.Is(err, domain.ErrInvalidStateTransition):
+			h.log.Warn("cannot delete active config",
+				"client_id", clientID,
+				"config_id", configID,
+			)
+
+			c.JSON(http.StatusConflict, gin.H{"error": "cannot delete active config"})
+		default:
+			h.log.Error("failed to delete config",
+				"client_id", clientID,
+				"config_id", configID,
+				"error", err,
+			)
+
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete config"})
+		}
+		return
+	}
+
+	h.log.Info("config deleted",
+		"client_id", clientID,
+		"config_id", configID,
+	)
+
+	c.Status(http.StatusNoContent)
+}
+
+// @Summary Update config
+// @Tags configs
+// @Param client_id path string true "Client ID"
+// @Param config_id path string true "Config ID"
+// @Accept json
+// @Param request body dto.ClientConfigRequest true "Config data"
+// @Success 200 {object} dto.ConfigResponse
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /clients/{client_id}/configs/{config_id}/update [put]
+func (h *ConfigHandler) Update(c *gin.Context) {
+	clientID := c.Param("client_id")
+	configID := c.Param("config_id")
+	userID := c.GetString("user_id")
+
+	h.log.Info("http update config started",
+		"client_id", clientID,
+		"config_id", configID,
+		"user_id", userID,
+	)
+
+	if clientID == "" || configID == "" {
+		h.log.Warn("missing client_id or config_id")
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "client id and config id are required",
+		})
+		return
+	}
+
+	var req configDTO.ClientConfigRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("invalid update config body",
+			"client_id", clientID,
+			"config_id", configID,
+		)
+
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid request body",
+		})
+		return
+	}
+
+	config, err := h.service.Update(
+		c.Request.Context(),
+		userID,
+		clientID,
+		configID,
+		req,
+	)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, domain.ErrClientNotFound):
+			h.log.Warn("client not found",
+				"client_id", clientID,
+			)
+
+			c.JSON(http.StatusNotFound, gin.H{"error": "client not found"})
+		case errors.Is(err, domain.ErrConfigNotFound):
+			h.log.Warn("config not found",
+				"config_id", configID,
+			)
+
+			c.JSON(http.StatusNotFound, gin.H{"error": "config not found"})
+		default:
+			h.log.Error("failed to update config",
+				"client_id", clientID,
+				"config_id", configID,
+				"user_id", userID,
+				"error", err,
+			)
+
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update config"})
+		}
+		return
+	}
+
+	h.log.Info("config updated",
+		"client_id", clientID,
+		"config_id", configID,
+		"user_id", userID,
+	)
+
+	c.JSON(http.StatusOK, mapper.ToConfigResponse(config))
+}

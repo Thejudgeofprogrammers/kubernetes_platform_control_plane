@@ -18,6 +18,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <Link to="/" className="nav-link">Main</Link>
           <Link to="/clients" className="nav-link">Clients</Link>
           <Link to="/api-services" className="nav-link">API Services</Link>
+          <Link to="/users" className="nav-link">Users</Link>
         </div>
 
         <div className="nav-right">

@@ -18,7 +18,7 @@ func NewApp(env *config.Config) (*gin.Engine, reconciler.ReconcilerService) {
 			"http://localhost:5173",
 			"http://172.22.4.66:5173",
 		},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,

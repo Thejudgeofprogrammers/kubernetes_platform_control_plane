@@ -169,6 +169,46 @@ export default function ClientDetailsPage() {
     const canDeploy =
       status !== "deleting";
 
+    const canStop = status === "running";
+    const canDelete = status !== "deleting";
+
+    const stopClient = async () => {
+      await api.post(`/clients/${id}/stop`);
+      queryClient.invalidateQueries({ queryKey: ["client", id] });
+    };
+
+    const deleteClient = async () => {
+      if (!confirm("Delete client?")) return;
+
+      await api.post(`/clients/${id}/delete`);
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+    };
+
+    const deleteConfig = async (configId: string) => {
+      if (!confirm("Delete config?")) return;
+
+      await api.delete(`/clients/${id}/configs/${configId}/delete`);
+
+      queryClient.invalidateQueries({ queryKey: ["configs", id] });
+    };
+
+    const updateConfig = async (configId: string) => {
+      const newVersion = prompt("New version?");
+      if (!newVersion) return;
+
+      await api.put(`/clients/${id}/configs/${configId}/update`, {
+        version: newVersion,
+        auth_type: "none",
+        auth_ref: "",
+        timeout_ms: 1000,
+        retry_count: 3,
+        retry_backoff: 100,
+        headers: {},
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["configs", id] });
+    };
+
   return (
     <Layout>
     <div
@@ -179,35 +219,32 @@ export default function ClientDetailsPage() {
         fontFamily: "Arial",
       }}
     >
-      <Card>
-        <h1 style={{ marginBottom: "8px" }}>{client.name}</h1>
+<Card>
+  <div style={{ marginBottom: "12px" }}>
+    <h1 style={{ margin: 0 }}>{client.name}</h1>
 
-        <p className={`client-status status-${client.status}`}>
-          {client.status}
-        </p>
+    <span className={`client-status status-${client.status}`}>
+      status: {client.status}
+    </span>
+  </div>
 
-        <div style={{ marginTop: "12px" }}>
-          <p style={{ fontSize: "14px", color: "#888", margin: 0 }}>
-            API Service:
-          </p>
+  <div className="api-service-block">
+    <div className="label">API Service</div>
 
-          <p style={{ fontWeight: "bold", margin: "4px 0" }}>
-            {service?.name || "Not set"}
-          </p>
+      <div style={{ marginTop: "10px"}}></div>
 
-          {service && (
-            <p style={{ color: "#6366f1", margin: 0 }}>
-              {service.base_url}
-            </p>
-          )}
-
-          {!service && (
-            <p style={{ color: "red", margin: 0 }}>
-              API Service not found
-            </p>
-          )}
-        </div>
-      </Card>
+    {service ? (
+      <div className="service-card" style={{ marginLeft: "10px"}}>
+        <div className="service-name">Service: {service.name}</div>
+        <div className="service-url">BaseURL: {service.base_url}</div>
+      </div>
+    ) : (
+      <div className="service-error">
+        API Service not found
+      </div>
+    )}
+  </div>
+</Card>
       
       <div style={{ marginTop: "12px"}}></div>
 
@@ -373,6 +410,21 @@ export default function ClientDetailsPage() {
 
             <Button
               variant="secondary"
+              onClick={() => updateConfig(cfg.id)}
+            >
+              ✏️ Update
+            </Button>
+
+            <Button
+              variant="danger"
+              disabled={client.activeConfigId === cfg.id}
+              onClick={() => deleteConfig(cfg.id)}
+            >
+              🗑 Delete
+            </Button>
+
+            <Button
+              variant="secondary"
               disabled={!canStart || isBusy}
               onClick={async () => {
                 await api.post(`/clients/${id}/start`);
@@ -391,6 +443,21 @@ export default function ClientDetailsPage() {
               }}
             >
               🔄 Restart
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={!canStop || isBusy}
+              onClick={stopClient}
+            >
+              ⏹ Stop
+            </Button>
+
+            <Button
+              variant="danger"
+              disabled={!canDelete}
+              onClick={deleteClient}
+            >
+              🗑 Delete
             </Button>
           </div>
         </div>

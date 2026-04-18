@@ -113,3 +113,55 @@ func (h *APIServiceHandler) Delete(c *gin.Context) {
 		"status": "deleted",
 	})
 }
+
+func (h *APIServiceHandler) GetByID(c *gin.Context) {
+	id := c.Param("id")
+
+	service, err := h.service.GetByID(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, domain.ErrAPIServiceNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to get api service",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, mapper.ToAPIServiceResponse(service))
+}
+
+func (h *APIServiceHandler) Update(c *gin.Context) {
+	id := c.Param("id")
+
+	var req apiserviceDTO.UpdateAPIServiceRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body"})
+		return
+	}
+
+	service, err := h.service.Update(
+		c.Request.Context(),
+		id,
+		req.Name,
+		req.BaseURL,
+		req.Protocol,
+	)
+	if err != nil {
+		if errors.Is(err, domain.ErrAPIServiceNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to update api service",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, mapper.ToAPIServiceResponse(service))
+}
+

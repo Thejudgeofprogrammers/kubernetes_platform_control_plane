@@ -38,6 +38,10 @@ type Config struct {
 	ProxyConnectTimeout string
 	ProxyReadTimeout    string
 	ProxySendTimeout    string
+
+	MaxMetricsPerClient int
+
+	BaseURLIngress string
 }
 
 func LoadEnv() *Config {
@@ -87,6 +91,10 @@ func LoadEnv() *Config {
 		ProxyConnectTimeout: getenv("GLOBAL_PROXY_CONNECT_TIMEOUT", "30"),
 		ProxyReadTimeout:    getenv("GLOBAL_PROXY_READ_TIMEOUT", "120"),
 		ProxySendTimeout:    getenv("GLOBAL_PROXY_SEND_TIMEOUT", "120"),
+	
+		MaxMetricsPerClient: getenvInt("MAX_METRICS_PER_CLIENT", "1000"),
+
+		BaseURLIngress: getenv("BASE_URL_INGRESS", "http://localhost:8080"),
 	}
 
 	return config

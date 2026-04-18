@@ -12,4 +12,5 @@ type ClientService interface {
 	Restart(ctx context.Context, userID, id string, reason string) error
 	Delete(ctx context.Context, userID, id string) error
 	Start(ctx context.Context, clientID string) error
+	Stop(ctx context.Context, clientID string) error
 }

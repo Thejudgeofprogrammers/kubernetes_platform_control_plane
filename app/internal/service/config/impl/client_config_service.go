@@ -5,6 +5,7 @@ import (
 	"control_plane/internal/domain"
 	"control_plane/internal/orchestrator"
 	"control_plane/internal/repository"
+	configDTO "control_plane/internal/transport/http_gin/dto/config"
 	"control_plane/internal/service/audit"
 	"control_plane/internal/service/config"
 	"log/slog"
@@ -16,6 +17,7 @@ import (
 type configService struct {
 	clientRepo   repository.ClientRepository
 	configRepo   repository.ClientConfigRepository
+	actionRepo   repository.ClientActionRepository
 	audit        audit.AuditService
 	orchestrator orchestrator.Orchestrator
 	log          *slog.Logger
@@ -25,6 +27,7 @@ func NewConfigService(
 	clientRepo repository.ClientRepository,
 	configRepo repository.ClientConfigRepository,
 	audit audit.AuditService,
+	actionRepo   repository.ClientActionRepository,
 	orchestrator orchestrator.Orchestrator,
 	log *slog.Logger,
 ) config.ConfigService {
@@ -32,6 +35,7 @@ func NewConfigService(
 		clientRepo:   clientRepo,
 		configRepo:   configRepo,
 		audit:        audit,
+		actionRepo:   actionRepo,
 		orchestrator: orchestrator,
 		log:          log,
 	}
@@ -245,4 +249,126 @@ func (s *configService) ListConfigs(
 	)
 
 	return configs, nil
+}
+
+func (s *configService) Delete(
+	ctx context.Context,
+	clientID string,
+	configID string,
+) error {
+
+	s.log.Info("delete config started",
+		"client_id", clientID,
+		"config_id", configID,
+	)
+
+	client, err := s.clientRepo.GetByID(ctx, clientID)
+	if err != nil {
+		return err
+	}
+
+	config, err := s.configRepo.GetByID(ctx, configID)
+	if err != nil {
+		return err
+	}
+
+	if config.ClientID != client.ID {
+		return domain.ErrConfigNotFound
+	}
+
+	if client.ActiveConfigID != nil && *client.ActiveConfigID == configID {
+		return domain.ErrInvalidStateTransition
+	}
+
+	if err := s.configRepo.Delete(ctx, configID); err != nil {
+		return err
+	}
+
+	s.log.Info("config deleted",
+		"client_id", clientID,
+		"config_id", configID,
+	)
+
+	return nil
+}
+
+func (s *configService) Update(
+	ctx context.Context,
+	userID string,
+	clientID string,
+	configID string,
+	req configDTO.ClientConfigRequest,
+) (*domain.APIClientConfig, error) {
+
+	s.log.Info("update config started",
+		"client_id", clientID,
+		"config_id", configID,
+		"user_id", userID,
+	)
+
+	client, err := s.clientRepo.GetByID(ctx, clientID)
+	if err != nil {
+		return nil, err
+	}
+
+	oldConfig, err := s.configRepo.GetByID(ctx, configID)
+	if err != nil {
+		return nil, err
+	}
+
+	if oldConfig.ClientID != client.ID {
+		return nil, domain.ErrConfigNotFound
+	}
+
+	newConfig := &domain.APIClientConfig{
+		ID:           uuid.NewString(),
+		ClientID:     clientID,
+		Version:      req.Version,
+		AuthType:     domain.AuthType(req.AuthType),
+		AuthRef:      req.AuthRef,
+		TimeoutMs:    req.TimeoutMs,
+		RetryCount:   req.RetryCount,
+		RetryBackoff: req.RetryBackoff,
+		Headers:      req.Headers,
+		CreatedAt:    time.Now(),
+		CreatedBy:    userID,
+	}
+
+	if err := s.configRepo.Create(ctx, newConfig); err != nil {
+		return nil, err
+	}
+
+	if client.ActiveConfigID != nil && *client.ActiveConfigID == configID {
+
+		client.ActivateConfig(newConfig.ID)
+
+		if err := s.clientRepo.Update(ctx, client); err != nil {
+			return nil, err
+		}
+
+		action := &domain.APIClientAction{
+			ID:        uuid.NewString(),
+			ClientID:  clientID,
+			UserID:    userID,
+			Type:      domain.ActionDeploy,
+			CreatedAt: time.Now(),
+		}
+
+		if err := s.actionRepo.Create(ctx, action); err != nil {
+			return nil, err
+		}
+
+		s.log.Info("deploy triggered after config update",
+			"client_id", clientID,
+			"new_config_id", newConfig.ID,
+		)
+	}
+
+	s.log.Info("config updated (new version created)",
+		"client_id", clientID,
+		"old_config_id", configID,
+		"new_config_id", newConfig.ID,
+	)
+
+	return newConfig, nil
 }
