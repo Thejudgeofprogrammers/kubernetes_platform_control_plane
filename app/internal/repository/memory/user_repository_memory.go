@@ -3,8 +3,8 @@ package memory
 import (
 	"context"
 	"control_plane/internal/domain"
+	"control_plane/internal/logger"
 	"control_plane/internal/repository"
-	"log/slog"
 	"sync"
 )
 
@@ -13,14 +13,14 @@ type InMemoryUserRepository struct {
 	usersByID    map[string]*domain.User
 	usersByEmail map[string]*domain.User
 
-	log *slog.Logger
+	log logger.Logger
 }
 
-func NewInMemoryUserRepository(log *slog.Logger) repository.UserRepository {
+func NewInMemoryUserRepository(log logger.Logger) repository.UserRepository {
 	return &InMemoryUserRepository{
 		usersByID:    make(map[string]*domain.User),
 		usersByEmail: make(map[string]*domain.User),
-		log: log,
+		log:          log,
 	}
 }
 

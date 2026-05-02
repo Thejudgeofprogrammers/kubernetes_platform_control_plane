@@ -3,8 +3,8 @@ package memory
 import (
 	"context"
 	"control_plane/internal/domain"
+	"control_plane/internal/logger"
 	"control_plane/internal/repository"
-	"log/slog"
 	"sort"
 	"sync"
 )
@@ -13,13 +13,13 @@ type InMemoryClientRepository struct {
 	storage map[string]*domain.APIClient
 	mu      sync.RWMutex
 
-	log *slog.Logger
+	log logger.Logger
 }
 
-func NewInMemoryClientRepository(log *slog.Logger) repository.ClientRepository {
+func NewInMemoryClientRepository(log logger.Logger) repository.ClientRepository {
 	return &InMemoryClientRepository{
 		storage: make(map[string]*domain.APIClient),
-		log: log,
+		log:     log,
 	}
 }
 

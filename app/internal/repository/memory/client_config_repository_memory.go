@@ -3,8 +3,8 @@ package memory
 import (
 	"context"
 	"control_plane/internal/domain"
+	"control_plane/internal/logger"
 	"control_plane/internal/repository"
-	"log/slog"
 	"sync"
 )
 
@@ -12,10 +12,10 @@ type InMemoryClientConfigRepository struct {
 	storage map[string]*domain.APIClientConfig
 	mu      sync.RWMutex
 
-	log *slog.Logger
+	log logger.Logger
 }
 
-func NewInMemoryClientConfigRepository(log *slog.Logger) repository.ClientConfigRepository {
+func NewInMemoryClientConfigRepository(log logger.Logger) repository.ClientConfigRepository {
 	return &InMemoryClientConfigRepository{
 		storage: make(map[string]*domain.APIClientConfig),
 		log:     log,
@@ -100,4 +100,3 @@ func (r *InMemoryClientConfigRepository) Delete(
 
 	return nil
 }
-

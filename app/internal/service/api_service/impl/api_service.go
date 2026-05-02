@@ -3,10 +3,10 @@ package impl
 import (
 	"context"
 	"control_plane/internal/domain"
+	"control_plane/internal/logger"
 	"control_plane/internal/repository"
 	apiservice "control_plane/internal/service/api_service"
 	"errors"
-	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,10 +14,10 @@ import (
 
 type APIServiceServiceImpl struct {
 	repo repository.APIServiceRepository
-	log  *slog.Logger
+	log  logger.Logger
 }
 
-func NewAPIServiceService(repo repository.APIServiceRepository, log *slog.Logger) apiservice.APIServiceService {
+func NewAPIServiceService(repo repository.APIServiceRepository, log logger.Logger) apiservice.APIServiceService {
 	return &APIServiceServiceImpl{
 		repo: repo,
 		log:  log,
@@ -109,31 +109,31 @@ func (s *APIServiceServiceImpl) Delete(ctx context.Context, id string) error {
 }
 
 func (s *APIServiceServiceImpl) GetByID(
-    ctx context.Context,
-    id string,
+	ctx context.Context,
+	id string,
 ) (*domain.APIService, error) {
 
-    s.log.Debug("get api service",
-        "api_service_id", id,
-    )
+	s.log.Debug("get api service",
+		"api_service_id", id,
+	)
 
-    apiService, err := s.repo.GetByID(ctx, id)
-    if err != nil {
-        s.log.Error("failed to get api service",
-            "api_service_id", id,
-            "error", err,
-        )
-        return nil, err
-    }
+	apiService, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		s.log.Error("failed to get api service",
+			"api_service_id", id,
+			"error", err,
+		)
+		return nil, err
+	}
 
-    if apiService == nil {
-        s.log.Warn("api service not found",
-            "api_service_id", id,
-        )
-        return nil, domain.ErrAPIServiceNotFound
-    }
+	if apiService == nil {
+		s.log.Warn("api service not found",
+			"api_service_id", id,
+		)
+		return nil, domain.ErrAPIServiceNotFound
+	}
 
-    return apiService, nil
+	return apiService, nil
 }
 
 func (s *APIServiceServiceImpl) Update(
@@ -156,4 +156,3 @@ func (s *APIServiceServiceImpl) Update(
 
 	return apiService, nil
 }
-

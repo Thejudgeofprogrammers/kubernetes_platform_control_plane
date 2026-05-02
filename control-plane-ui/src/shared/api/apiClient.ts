@@ -1,6 +1,6 @@
-import axios from "axios"
+import axios from "axios";
 
-const apiURL = "http://172.22.4.66:8000/api/v1"
+const apiURL = "http://172.22.4.66:8000/api/v1";
 
 export const api = axios.create({
   baseURL: apiURL,
@@ -10,19 +10,23 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-    const token = localStorage.getItem("access_token");
+  const token = localStorage.getItem("access_token");
 
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
 
-    return config;
-})
+  return config;
+});
 
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+
+    if (!originalRequest) {
+      return Promise.reject(error);
+    }
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
@@ -30,12 +34,13 @@ api.interceptors.response.use(
       try {
         const refreshToken = localStorage.getItem("refresh_token");
 
-        const res = await axios.post(
-          apiURL + "/auth/refresh",
-          {
-            refresh_token: refreshToken,
-          }
-        );
+        if (!refreshToken) {
+          throw new Error("No refresh token");
+        }
+
+        const res = await axios.post(`${apiURL}/auth/refresh`, {
+          refresh_token: refreshToken,
+        });
 
         const newAccessToken = res.data.access_token;
 
@@ -49,21 +54,13 @@ api.interceptors.response.use(
         localStorage.removeItem("refresh_token");
 
         window.location.href = "/login";
-        console.log(err)
+
+        return Promise.reject(err);
       }
     }
 
-    return Promise.reject(error);
-  }
-);
-
-api.interceptors.response.use(
-  (res) => res,
-  (error) => {
     const message =
-      error.response?.data?.error ||
-      error.message ||
-      "Unknown error";
+      error.response?.data?.error || error.message || "Unknown error";
 
     console.error("API ERROR:", message);
 
@@ -72,7 +69,7 @@ api.interceptors.response.use(
 );
 
 export const deleteClient = async (clientId: string) => {
-    if (!confirm("Delete client?")) return;
+  if (!confirm("Delete client?")) return;
 
-    await api.post(`/clients/${clientId}/delete`);
+  await api.post(`/clients/${clientId}/delete`);
 };

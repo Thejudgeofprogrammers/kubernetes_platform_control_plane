@@ -3,8 +3,8 @@ package memory
 import (
 	"context"
 	"control_plane/internal/domain"
+	"control_plane/internal/logger"
 	"control_plane/internal/repository"
-	"log/slog"
 	"sync"
 	"time"
 )
@@ -13,10 +13,10 @@ type InMemoryEmailCodeRepository struct {
 	mu      sync.RWMutex
 	storage map[string]*domain.EmailCode // key = email
 
-	log *slog.Logger
+	log logger.Logger
 }
 
-func NewInMemoryEmailCodeRepository(log *slog.Logger) repository.EmailCodeRepository {
+func NewInMemoryEmailCodeRepository(log logger.Logger) repository.EmailCodeRepository {
 	return &InMemoryEmailCodeRepository{
 		storage: make(map[string]*domain.EmailCode),
 		log:     log,

@@ -3,11 +3,12 @@ package k8s
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"control_plane/internal/domain"
+	"control_plane/internal/logger"
 	"control_plane/internal/orchestrator"
+	"control_plane/internal/repository"
 
 	healthSrv "control_plane/internal/service/health"
 
@@ -15,6 +16,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
@@ -29,9 +31,10 @@ type K8sOrchestrator struct {
 	proxyConnectTimeout string
 	proxyReadTimeout    string
 	proxySendTimeout    string
-	log                 *slog.Logger
+	log                 logger.Logger
 	health              healthSrv.HealthService
 	apiServiceService   apiService.APIServiceService
+	clientRepo          repository.ClientRepository
 }
 
 func NewK8sOrchestrator(
@@ -41,9 +44,10 @@ func NewK8sOrchestrator(
 	proxyConnectTimeout string,
 	proxyReadTimeout string,
 	proxySendTimeout string,
-	log *slog.Logger,
+	log logger.Logger,
 	health healthSrv.HealthService,
 	apiServiceService apiService.APIServiceService,
+	clientRepo          repository.ClientRepository,
 ) orchestrator.Orchestrator {
 	return &K8sOrchestrator{
 		clientset:           clientset,
@@ -55,6 +59,7 @@ func NewK8sOrchestrator(
 		log:                 log,
 		health:              health,
 		apiServiceService:   apiServiceService,
+		clientRepo:          clientRepo,
 	}
 }
 
@@ -63,7 +68,7 @@ func (o *K8sOrchestrator) Deploy(
 	client *domain.APIClient,
 	config *domain.APIClientConfig,
 ) error {
-
+	created := false
 	deployName := fmt.Sprintf("api-client-%s", client.ID)
 
 	o.log.Info("k8s deploy started",
@@ -72,10 +77,15 @@ func (o *K8sOrchestrator) Deploy(
 		"namespace", o.namespace,
 	)
 
-	labels := map[string]string{
+	selectorLabels := map[string]string{
 		"app":       "api-client",
 		"client_id": client.ID,
-		// "version":   config.Version,
+	}
+
+	templateLabels := map[string]string{
+		"app":       "api-client",
+		"client_id": client.ID,
+		"version":   config.Version,
 	}
 
 	apiService, err := o.apiServiceService.GetByID(ctx, client.APIServiceID)
@@ -98,16 +108,19 @@ func (o *K8sOrchestrator) Deploy(
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      deployName,
 			Namespace: o.namespace,
-			Labels:    labels,
+			Labels:    selectorLabels,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: int32Ptr(1),
 			Selector: &metav1.LabelSelector{
-				MatchLabels: labels,
+				MatchLabels: selectorLabels,
 			},
 			Template: v1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: labels,
+					Labels: templateLabels,
+					Annotations: map[string]string{
+						"config-version": config.Version,
+					},
 				},
 				Spec: v1.PodSpec{
 					Containers: []v1.Container{
@@ -115,10 +128,24 @@ func (o *K8sOrchestrator) Deploy(
 							Name:            fmt.Sprintf("client-%s", client.ID),
 							Image:           o.image,
 							ImagePullPolicy: v1.PullNever,
+							Resources: v1.ResourceRequirements{
+								Requests: v1.ResourceList{
+									v1.ResourceCPU:    resource.MustParse("100m"),
+									v1.ResourceMemory: resource.MustParse("128Mi"),
+								},
+								Limits: v1.ResourceList{
+									v1.ResourceCPU:    resource.MustParse("500m"),
+									v1.ResourceMemory: resource.MustParse("512Mi"),
+								},
+							},
 							Env: []v1.EnvVar{
 								{
 									Name:  "CLIENT_ID",
 									Value: client.ID,
+								},
+								{
+									Name:  "CLIENT_SLUG",
+									Value: client.Slug,
 								},
 								{
 									Name:  "BASE_URL",
@@ -171,9 +198,7 @@ func (o *K8sOrchestrator) Deploy(
 				return getErr
 			}
 
-			existing.Spec.Template.Spec = deploy.Spec.Template.Spec
-			existing.Spec.Template.Labels = deploy.Spec.Template.Labels
-			existing.Spec.Template.Annotations = deploy.Spec.Template.Annotations
+			existing.Spec = deploy.Spec
 
 			_, updateErr := o.clientset.AppsV1().
 				Deployments(o.namespace).
@@ -189,6 +214,7 @@ func (o *K8sOrchestrator) Deploy(
 			o.log.Info("k8s deployment updated",
 				"client_id", client.ID,
 			)
+			created = true
 		} else {
 			o.log.Error("k8s deploy failed",
 				"client_id", client.ID,
@@ -198,9 +224,11 @@ func (o *K8sOrchestrator) Deploy(
 		}
 	}
 
-	o.log.Info("k8s deployment created",
-		"client_id", client.ID,
-	)
+	if created {
+		o.log.Info("deployment created")
+	} else {
+		o.log.Info("deployment updated")
+	}
 
 	service := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -208,9 +236,7 @@ func (o *K8sOrchestrator) Deploy(
 			Namespace: o.namespace,
 		},
 		Spec: v1.ServiceSpec{
-			Selector: map[string]string{
-				"client_id": client.ID,
-			},
+			Selector: selectorLabels,
 			Ports: []v1.ServicePort{
 				{
 					Port:       80,
@@ -225,8 +251,29 @@ func (o *K8sOrchestrator) Deploy(
 		Services(o.namespace).
 		Create(ctx, service, metav1.CreateOptions{})
 
-	if err != nil && !apierrors.IsAlreadyExists(err) {
-		return err
+	if err != nil {
+		if apierrors.IsAlreadyExists(err) {
+
+			existing, getErr := o.clientset.CoreV1().
+				Services(o.namespace).
+				Get(ctx, deployName, metav1.GetOptions{})
+			if getErr != nil {
+				return getErr
+			}
+
+			existing.Spec = service.Spec
+
+			_, updateErr := o.clientset.CoreV1().
+				Services(o.namespace).
+				Update(ctx, existing, metav1.UpdateOptions{})
+
+			if updateErr != nil {
+				return updateErr
+			}
+
+		} else {
+			return err
+		}
 	}
 
 	ingress := &networkingv1.Ingress{
@@ -243,13 +290,14 @@ func (o *K8sOrchestrator) Deploy(
 			},
 		},
 		Spec: networkingv1.IngressSpec{
+			IngressClassName: ptr("nginx"),
 			Rules: []networkingv1.IngressRule{
 				{
 					IngressRuleValue: networkingv1.IngressRuleValue{
 						HTTP: &networkingv1.HTTPIngressRuleValue{
 							Paths: []networkingv1.HTTPIngressPath{
 								{
-									Path:     fmt.Sprintf("/api/clients/%s(/|$)(.*)", client.ID),
+									Path: fmt.Sprintf("/api/%s(/|$)(.*)", client.Slug),
 									PathType: ptr(networkingv1.PathTypeImplementationSpecific),
 									Backend: networkingv1.IngressBackend{
 										Service: &networkingv1.IngressServiceBackend{
@@ -274,17 +322,28 @@ func (o *K8sOrchestrator) Deploy(
 
 	if err != nil {
 		if apierrors.IsAlreadyExists(err) {
-			o.log.Info("ingress already exists",
-				"client_id", client.ID,
-			)
-			return nil
-		}
 
-		o.log.Error("failed to create ingress",
-			"client_id", client.ID,
-			"error", err,
-		)
-		return err
+			existing, getErr := o.clientset.NetworkingV1().
+				Ingresses(o.namespace).
+				Get(ctx, deployName, metav1.GetOptions{})
+			if getErr != nil {
+				return getErr
+			}
+
+			existing.Spec = ingress.Spec
+			existing.Annotations = ingress.Annotations
+
+			_, updateErr := o.clientset.NetworkingV1().
+				Ingresses(o.namespace).
+				Update(ctx, existing, metav1.UpdateOptions{})
+
+			if updateErr != nil {
+				return updateErr
+			}
+
+		} else {
+			return err
+		}
 	}
 
 	return nil
@@ -302,20 +361,20 @@ func (o *K8sOrchestrator) Restart(ctx context.Context, clientID string) error {
 	deploy, err := o.clientset.AppsV1().
 		Deployments(o.namespace).
 		Get(ctx, deployName, metav1.GetOptions{})
-	if err != nil {
-		o.log.Error("k8s restart get failed",
+	if apierrors.IsNotFound(err) {
+		o.log.Warn("deployment not found, nothing to restart",
 			"client_id", clientID,
-			"deploy", deployName,
-			"error", err,
 		)
-		return err
+		return nil
 	}
 
 	if deploy.Spec.Template.ObjectMeta.Annotations == nil {
 		deploy.Spec.Template.ObjectMeta.Annotations = map[string]string{}
 	}
 
-	deploy.Spec.Template.ObjectMeta.Annotations["restartedAt"] = fmt.Sprintf("%d", time.Now().Unix())
+	restartAt := time.Now().Format(time.RFC3339)
+
+	deploy.Spec.Template.Annotations["kubectl.kubernetes.io/restartedAt"] = restartAt
 
 	_, err = o.clientset.AppsV1().
 		Deployments(o.namespace).
@@ -333,6 +392,7 @@ func (o *K8sOrchestrator) Restart(ctx context.Context, clientID string) error {
 	o.log.Info("k8s restart completed",
 		"client_id", clientID,
 		"deploy", deployName,
+		"restart_at", restartAt,
 	)
 
 	return nil
@@ -355,17 +415,33 @@ func (o *K8sOrchestrator) Delete(ctx context.Context, clientID string) error {
 			PropagationPolicy: &policy,
 		})
 
-	if apierrors.IsNotFound(err) {
-		o.log.Info("deployment already deleted",
+	if err != nil && !apierrors.IsNotFound(err) {
+		o.log.Error("failed to delete deployment",
 			"client_id", clientID,
+			"error", err,
 		)
-		return nil
+		return err
 	}
 
-	if err != nil {
-		o.log.Error("k8s delete failed",
+	err = o.clientset.CoreV1().
+		Services(o.namespace).
+		Delete(ctx, deployName, metav1.DeleteOptions{})
+
+	if err != nil && !apierrors.IsNotFound(err) {
+		o.log.Error("failed to delete service",
 			"client_id", clientID,
-			"deploy", deployName,
+			"error", err,
+		)
+		return err
+	}
+
+	err = o.clientset.NetworkingV1().
+		Ingresses(o.namespace).
+		Delete(ctx, deployName, metav1.DeleteOptions{})
+
+	if err != nil && !apierrors.IsNotFound(err) {
+		o.log.Error("failed to delete ingress",
+			"client_id", clientID,
 			"error", err,
 		)
 		return err
@@ -373,13 +449,26 @@ func (o *K8sOrchestrator) Delete(ctx context.Context, clientID string) error {
 
 	o.log.Info("k8s delete completed",
 		"client_id", clientID,
-		"deploy", deployName,
 	)
 
 	return nil
 }
 
 func (o *K8sOrchestrator) CheckHealth(ctx context.Context, clientID string) {
+	client, err := o.clientRepo.GetByID(ctx, clientID)
+	if err == nil {
+		if client.GetStatus() == domain.ClientStatusDisabled ||
+		client.GetStatus() == domain.ClientStatusDeleting {
+			o.health.Set(clientID, domain.HealthUnhealthy)
+			return
+		}
+	} else {
+		o.log.Warn("failed to get client, fallback to k8s check",
+			"client_id", clientID,
+			"error", err,
+		)
+	}
+	
 	pods, err := o.clientset.CoreV1().
 		Pods(o.namespace).
 		List(ctx, metav1.ListOptions{
@@ -398,20 +487,52 @@ func (o *K8sOrchestrator) CheckHealth(ctx context.Context, clientID string) {
 		return
 	}
 
-	pod := pods.Items[0]
+	readyPods := 0
+	pendingPods := 0
 
-	switch pod.Status.Phase {
-	case v1.PodRunning:
-		o.health.Set(clientID, domain.HealthHealthy)
-	case v1.PodPending:
-		o.health.Set(clientID, domain.HealthDegraded)
-	default:
-		o.health.Set(clientID, domain.HealthUnhealthy)
+	for _, pod := range pods.Items {
+
+		if pod.Status.Phase == v1.PodPending {
+			pendingPods++
+			continue
+		}
+
+		if pod.Status.Phase != v1.PodRunning {
+			continue
+		}
+
+		isReady := true
+		for _, c := range pod.Status.ContainerStatuses {
+			if !c.Ready {
+				isReady = false
+				break
+			}
+		}
+
+		if isReady {
+			readyPods++
+		}
 	}
+	
+	var status domain.HealthStatus
+
+	switch {
+	case readyPods  > 0:
+		status = domain.HealthHealthy
+	case pendingPods > 0:
+		status = domain.HealthDegraded
+	default:
+		status = domain.HealthUnhealthy
+	}
+
+	o.health.Set(clientID, status)
 
 	o.log.Info("health updated",
 		"client_id", clientID,
-		"status", pod.Status.Phase,
+		"status", status,
+		"pods_total", len(pods.Items),
+		"ready", readyPods,
+		"pending", pendingPods,
 	)
 }
 

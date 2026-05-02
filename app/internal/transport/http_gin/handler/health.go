@@ -2,9 +2,9 @@ package handler
 
 import (
 	"control_plane/internal/domain"
+	"control_plane/internal/logger"
 	"control_plane/internal/service/health"
 	dto "control_plane/internal/transport/http_gin/dto/health"
-	"log/slog"
 	"net/http"
 	"time"
 
@@ -13,10 +13,10 @@ import (
 
 type HealthHandler struct {
 	service health.HealthService
-	log     *slog.Logger
+	log     logger.Logger
 }
 
-func NewHealthHandler(s health.HealthService, log *slog.Logger) *HealthHandler {
+func NewHealthHandler(s health.HealthService, log logger.Logger) *HealthHandler {
 	return &HealthHandler{
 		service: s,
 		log:     log,

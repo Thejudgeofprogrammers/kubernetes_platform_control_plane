@@ -41,7 +41,12 @@ type Config struct {
 
 	MaxMetricsPerClient int
 
-	BaseURLIngress string
+	BaseURLIngress string // Возможно не нужен
+
+	LogLevel  string
+	LogLayers string
+
+	PublicBaseURL string
 }
 
 func LoadEnv() *Config {
@@ -91,16 +96,28 @@ func LoadEnv() *Config {
 		ProxyConnectTimeout: getenv("GLOBAL_PROXY_CONNECT_TIMEOUT", "30"),
 		ProxyReadTimeout:    getenv("GLOBAL_PROXY_READ_TIMEOUT", "120"),
 		ProxySendTimeout:    getenv("GLOBAL_PROXY_SEND_TIMEOUT", "120"),
-	
+
 		MaxMetricsPerClient: getenvInt("MAX_METRICS_PER_CLIENT", "1000"),
 
 		BaseURLIngress: getenv("BASE_URL_INGRESS", "http://localhost:8080"),
+
+		LogLevel:  getenv("LOG_LEVEL", "info"),
+		LogLayers: getenv("LOG_LAYERS", ""),
+		
+		PublicBaseURL: getError(getenv("PUBLIC_BASE_URL", "")),
 	}
 
 	return config
 }
 
-func getenvInt(k string, v string) int {
+func getError(v string) string {
+	if v == "" {
+		log.Fatal("Value in config not exists")
+	}
+	return v
+}
+
+func getenvInt(k, v string) int {
 	e := os.Getenv(k)
 	if e == "" {
 		num, _ := strconv.Atoi(v)
@@ -115,7 +132,7 @@ func getenvInt(k string, v string) int {
 	return num
 }
 
-func getenv(k string, v string) string {
+func getenv(k, v string) string {
 	e := os.Getenv(k)
 	if e == "" {
 		return v

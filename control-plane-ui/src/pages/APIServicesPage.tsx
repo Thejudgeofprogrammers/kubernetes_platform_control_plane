@@ -20,9 +20,9 @@ export default function APIServicesPage() {
 
   const handleCreate = async () => {
     createMutation.mutate({
-        name,
-        base_url: baseURL,
-        protocol,
+      name,
+      base_url: baseURL,
+      protocol,
     });
     setName("");
     setBaseURL("");
@@ -32,55 +32,55 @@ export default function APIServicesPage() {
 
   return (
     <Layout>
-    <>
-      <Card>
-        <h3>Create API Service</h3>
+      <>
+        <Card>
+          <h3>Create API Service</h3>
 
-        <Input
-          placeholder="Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <div style={{ marginTop: "12px"}}></div>
-        <Input
-          placeholder="Base URL"
-          value={baseURL}
-          onChange={(e) => setBaseURL(e.target.value)}
-        />
-        <div style={{ marginTop: "12px"}}></div>
-        <Select
+          <Input
+            placeholder="Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <div style={{ marginTop: "12px" }}></div>
+          <Input
+            placeholder="Base URL"
+            value={baseURL}
+            onChange={(e) => setBaseURL(e.target.value)}
+          />
+          <div style={{ marginTop: "12px" }}></div>
+          <Select
             value={protocol}
             onChange={setProtocol}
             options={[
-                { value: "http", label: "http" },
-                { value: "https", label: "https" },
+              { value: "http", label: "http" },
+              { value: "https", label: "https" },
             ]}
-        />
+          />
 
-        <div style={{ marginTop: "12px"}}>
+          <div style={{ marginTop: "12px" }}>
             <Button onClick={handleCreate} disabled={!name || !baseURL}>
-                Create
+              Create
             </Button>
-        </div>
-      </Card>
-
-      {services.map((s) => (
-        <Card key={s.id}>
-          <h3>
-            <Link to={`/api-services/${s.id}`}>{s.name}</Link>
-          </h3>
-          <p>BaseURL: {s.base_url}</p>
-          <p>Protocol: {s.protocol}</p>
-
-          <Button
-            variant="danger"
-            onClick={() => deleteMutation.mutate(s.id)}
-          >
-            Delete
-          </Button>
+          </div>
         </Card>
-      ))}
-    </>
+
+        {services.map((s) => (
+          <Card key={s.id}>
+            <h3>
+              <Link to={`/api-services/${s.id}`}>{s.name}</Link>
+            </h3>
+            <p>BaseURL: {s.base_url}</p>
+            <p>Protocol: {s.protocol}</p>
+
+            <Button
+              variant="danger"
+              onClick={() => deleteMutation.mutate(s.id)}
+            >
+              Delete
+            </Button>
+          </Card>
+        ))}
+      </>
     </Layout>
   );
 }

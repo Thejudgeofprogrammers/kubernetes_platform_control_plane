@@ -3,8 +3,8 @@ package memory
 import (
 	"context"
 	"control_plane/internal/domain"
+	"control_plane/internal/logger"
 	"control_plane/internal/repository"
-	"log/slog"
 	"sync"
 )
 
@@ -12,10 +12,10 @@ type InMemoryClientHealthRepostiory struct {
 	mu      sync.RWMutex
 	storage map[string]*domain.APIClientHealth
 
-	log *slog.Logger
+	log logger.Logger
 }
 
-func NewInMemoryClientHealthRepository(log *slog.Logger) repository.ClientHealthRepostiory {
+func NewInMemoryClientHealthRepository(log logger.Logger) repository.ClientHealthRepostiory {
 	return &InMemoryClientHealthRepostiory{
 		storage: make(map[string]*domain.APIClientHealth),
 		log:     log,
@@ -59,7 +59,7 @@ func (r *InMemoryClientHealthRepostiory) GetByClientID(ctx context.Context, clie
 func (r *InMemoryClientHealthRepostiory) Set(clientID string, health domain.APIClientHealth) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	r.storage[clientID] = &health
 
 	r.log.Info("client health updated",

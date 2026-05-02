@@ -3,12 +3,16 @@ export type ClientStatus =
   | "running"
   | "restarting"
   | "stopped"
+  | "stopping"
   | "deleting"
-  | "deploying";
+  | "deploying"
+  | "disabled";
 
 export interface APIClient {
   id: string;
   name: string;
+  slug: string
+  url: string
   description?: string;
   status: ClientStatus;
   api_service_id: string;

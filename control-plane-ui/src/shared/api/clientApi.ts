@@ -12,5 +12,5 @@ export const createClient = (data: CreateClientPayload) => {
 
 export const getClients = async () => {
   const res = await api.get("/clients");
-  return res.data.items
+  return res.data.items;
 };

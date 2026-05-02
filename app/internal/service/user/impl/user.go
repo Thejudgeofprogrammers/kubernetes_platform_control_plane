@@ -2,19 +2,19 @@ package impl
 
 import (
 	"context"
-	"log/slog"
 
 	"control_plane/internal/domain"
+	"control_plane/internal/logger"
 	"control_plane/internal/repository"
 	"control_plane/internal/service/user"
 )
 
 type userService struct {
 	userRepo repository.UserRepository
-	log      *slog.Logger
+	log      logger.Logger
 }
 
-func NewUserService(userRepo repository.UserRepository, log *slog.Logger) user.UserService {
+func NewUserService(userRepo repository.UserRepository, log logger.Logger) user.UserService {
 	return &userService{
 		userRepo: userRepo,
 		log:      log,

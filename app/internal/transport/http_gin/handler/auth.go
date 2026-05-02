@@ -1,9 +1,9 @@
 package handler
 
 import (
+	"control_plane/internal/logger"
 	"control_plane/internal/service/auth"
 	authDTO "control_plane/internal/transport/http_gin/dto/auth"
-	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -11,10 +11,10 @@ import (
 
 type AuthHandler struct {
 	service auth.AuthService
-	log     *slog.Logger
+	log     logger.Logger
 }
 
-func NewAuthHandler(s auth.AuthService, log *slog.Logger) *AuthHandler {
+func NewAuthHandler(s auth.AuthService, log logger.Logger) *AuthHandler {
 	return &AuthHandler{
 		service: s,
 		log:     log,

@@ -3,12 +3,12 @@ package impl
 import (
 	"context"
 	"control_plane/internal/domain"
+	"control_plane/internal/logger"
 	"control_plane/internal/orchestrator"
 	"control_plane/internal/repository"
-	configDTO "control_plane/internal/transport/http_gin/dto/config"
-	"control_plane/internal/service/audit"
 	"control_plane/internal/service/config"
-	"log/slog"
+	configDTO "control_plane/internal/transport/http_gin/dto/config"
+	actionSrv "control_plane/internal/service/action"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,25 +17,22 @@ import (
 type configService struct {
 	clientRepo   repository.ClientRepository
 	configRepo   repository.ClientConfigRepository
-	actionRepo   repository.ClientActionRepository
-	audit        audit.AuditService
+	actionService    actionSrv.ActionService
 	orchestrator orchestrator.Orchestrator
-	log          *slog.Logger
+	log          logger.Logger
 }
 
 func NewConfigService(
 	clientRepo repository.ClientRepository,
 	configRepo repository.ClientConfigRepository,
-	audit audit.AuditService,
-	actionRepo   repository.ClientActionRepository,
+	actionService actionSrv.ActionService,
 	orchestrator orchestrator.Orchestrator,
-	log *slog.Logger,
+	log logger.Logger,
 ) config.ConfigService {
 	return &configService{
 		clientRepo:   clientRepo,
 		configRepo:   configRepo,
-		audit:        audit,
-		actionRepo:   actionRepo,
+		actionService: actionService,
 		orchestrator: orchestrator,
 		log:          log,
 	}
@@ -72,14 +69,6 @@ func (s *configService) Deploy(
 		return err
 	}
 
-	if client.ActiveConfigID != nil && *client.ActiveConfigID == configID {
-		s.log.Info("config already active, skipping deploy",
-			"client_id", clientID,
-			"config_id", configID,
-		)
-		return nil
-	}
-
 	if config.ClientID != clientID {
 		s.log.Error("config does not belong to client",
 			"client_id", clientID,
@@ -88,43 +77,44 @@ func (s *configService) Deploy(
 		return domain.ErrInvalidStateTransition
 	}
 
-	s.log.Info("orchestrator deploy",
-		"client_id", clientID,
-		"config_id", configID,
-	)
+	actionType := domain.ActionDeploy
 
-	if err := s.orchestrator.Deploy(ctx, client, config); err != nil {
-		s.log.Error("deploy failed",
+	if client.ActiveConfigID != nil && *client.ActiveConfigID == configID {
+		s.log.Info("config already active → restart",
+			"client_id", clientID,
+		)
+
+		actionType = domain.ActionRestart
+
+		if err := client.Transition(domain.ClientStatusRestarting); err != nil {
+			return err
+		}
+	} else {
+		client.ActivateConfig(configID)
+
+		if err := client.Transition(domain.ClientStatusDeploying); err != nil {
+			return err
+		}
+
+		s.log.Info("config activated",
 			"client_id", clientID,
 			"config_id", configID,
-			"error", err,
 		)
-		return err
 	}
-
-	client.ActivateConfig(configID)
 
 	if err := s.clientRepo.Update(ctx, client); err != nil {
-		s.log.Error("failed to update client after deploy",
-			"client_id", clientID,
-			"config_id", configID,
-			"error", err,
-		)
 		return err
 	}
 
-	if err := s.audit.Log(ctx, clientID, userID, domain.ActionDeploy); err != nil {
-		s.log.Error("failed to write audit log",
-			"client_id", clientID,
-			"user_id", userID,
-			"error", err,
-		)
+	action, err := s.actionService.Create(ctx, clientID, userID, actionType)
+	if err != nil {
+		return err
 	}
 
-	s.log.Info("deploy config completed",
-		"user_id", userID,
+	s.log.Info("deploy action created",
 		"client_id", clientID,
-		"config_id", configID,
+		"action_id", action.ID,
+		"type", actionType,
 	)
 
 	return nil
@@ -176,6 +166,10 @@ func (s *configService) CreateConfig(
 		}
 	}
 
+	if headers == nil {
+		headers = map[string]string{}
+	}
+
 	config := &domain.APIClientConfig{
 		ID:           uuid.NewString(),
 		ClientID:     clientID,
@@ -197,14 +191,6 @@ func (s *configService) CreateConfig(
 			"error", err,
 		)
 		return nil, err
-	}
-
-	if err := s.audit.Log(ctx, clientID, userID, domain.ActionUpdate); err != nil {
-		s.log.Error("failed to write audit log",
-			"client_id", clientID,
-			"user_id", userID,
-			"error", err,
-		)
 	}
 
 	s.log.Info("config created",
@@ -264,19 +250,27 @@ func (s *configService) Delete(
 
 	client, err := s.clientRepo.GetByID(ctx, clientID)
 	if err != nil {
+		s.log.Error("failed to get client",
+			"client_id", clientID,
+			"error", err,
+		)
 		return err
 	}
 
 	config, err := s.configRepo.GetByID(ctx, configID)
 	if err != nil {
+		s.log.Error("failed to get config",
+			"config_id", configID,
+			"error", err,
+		)
 		return err
 	}
 
 	if config.ClientID != client.ID {
-		return domain.ErrConfigNotFound
+		return domain.ErrForbidden
 	}
 
-	if client.ActiveConfigID != nil && *client.ActiveConfigID == configID {
+	if (client.ActiveConfigID != nil && *client.ActiveConfigID == configID) {
 		return domain.ErrInvalidStateTransition
 	}
 
@@ -308,16 +302,40 @@ func (s *configService) Update(
 
 	client, err := s.clientRepo.GetByID(ctx, clientID)
 	if err != nil {
+		s.log.Error("failed to get client",
+			"client_id", clientID,
+			"error", err,
+		)
 		return nil, err
 	}
 
 	oldConfig, err := s.configRepo.GetByID(ctx, configID)
 	if err != nil {
+		s.log.Error("failed to get config",
+			"config_id", configID,
+			"error", err,
+		)
 		return nil, err
 	}
 
 	if oldConfig.ClientID != client.ID {
-		return nil, domain.ErrConfigNotFound
+		return nil, domain.ErrForbidden
+	}
+
+	configs, err := s.configRepo.ListByClientID(ctx, clientID)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, c := range configs {
+		if c.Version == req.Version {
+			return nil, domain.ErrConfigVersionExists
+		}
+	}
+
+	headers := req.Headers
+	if headers == nil {
+		headers = map[string]string{}
 	}
 
 	newConfig := &domain.APIClientConfig{
@@ -335,6 +353,10 @@ func (s *configService) Update(
 	}
 
 	if err := s.configRepo.Create(ctx, newConfig); err != nil {
+		s.log.Error("failed to create config",
+			"config_id", newConfig.ID,
+			"error", err,
+		)
 		return nil, err
 	}
 
@@ -342,25 +364,23 @@ func (s *configService) Update(
 
 		client.ActivateConfig(newConfig.ID)
 
+		if err := client.Transition(domain.ClientStatusDeploying); err != nil {
+			return nil, err
+		}
+
 		if err := s.clientRepo.Update(ctx, client); err != nil {
 			return nil, err
 		}
 
-		action := &domain.APIClientAction{
-			ID:        uuid.NewString(),
-			ClientID:  clientID,
-			UserID:    userID,
-			Type:      domain.ActionDeploy,
-			CreatedAt: time.Now(),
-		}
-
-		if err := s.actionRepo.Create(ctx, action); err != nil {
+		action, err := s.actionService.Create(ctx, clientID, userID, domain.ActionDeploy)
+		if err != nil {
 			return nil, err
 		}
 
 		s.log.Info("deploy triggered after config update",
 			"client_id", clientID,
 			"new_config_id", newConfig.ID,
+			"action_id", action.ID,
 		)
 	}
 

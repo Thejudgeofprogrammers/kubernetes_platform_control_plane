@@ -1,11 +1,9 @@
 import { api } from "../../shared/api/apiClient";
 
 export const usersApi = {
-  getUsers: () =>
-    api.get("/users").then(res => res.data.items),
+  getUsers: () => api.get("/users").then((res) => res.data.items),
 
-  deleteUser: (id: string) =>
-    api.delete(`/users/${id}`),
+  deleteUser: (id: string) => api.delete(`/users/${id}`),
 
   updateRole: (id: string, role: string) =>
     api.patch(`/users/${id}/role`, { role }),

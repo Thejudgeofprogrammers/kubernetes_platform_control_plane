@@ -3,13 +3,11 @@ package impl
 import (
 	"context"
 	"control_plane/internal/domain"
+	"control_plane/internal/logger"
 	"control_plane/internal/orchestrator"
 	"control_plane/internal/repository"
 	"control_plane/internal/service/action"
-	"control_plane/internal/service/audit"
 	"control_plane/internal/service/client"
-	"log/slog"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -17,29 +15,23 @@ import (
 type clientService struct {
 	repo       repository.ClientRepository
 	orch       orchestrator.Orchestrator
-	audit      audit.AuditService
 	configRepo repository.ClientConfigRepository
 	actionSrv  action.ActionService
-	actionRepo repository.ClientActionRepository
-	log        *slog.Logger
+	log        logger.Logger
 }
 
 func NewClientService(
 	repo repository.ClientRepository,
 	orch orchestrator.Orchestrator,
-	audit audit.AuditService,
 	configRepo repository.ClientConfigRepository,
 	actionSrv action.ActionService,
-	actionRepo repository.ClientActionRepository,
-	log *slog.Logger,
+	log logger.Logger,
 ) client.ClientService {
 	return &clientService{
 		repo:       repo,
-		audit:      audit,
 		orch:       orch,
 		configRepo: configRepo,
 		actionSrv:  actionSrv,
-		actionRepo: actionRepo,
 		log:        log,
 	}
 }
@@ -92,15 +84,6 @@ func (s *clientService) Create(ctx context.Context, userID, name, apiServiceID, 
 		return nil, err
 	}
 
-	if err := s.audit.Log(ctx, client.ID, userID, domain.ActionCreate); err != nil {
-		s.log.Error("failed to write audit log",
-			"client_id", client.ID,
-			"user_id", userID,
-			"error", err,
-		)
-		return nil, err
-	}
-
 	s.log.Info("client created",
 		"client_id", client.ID,
 		"user_id", userID,
@@ -128,7 +111,6 @@ func (s *clientService) GetByID(ctx context.Context, id string) (*domain.APIClie
 }
 
 func (s *clientService) Restart(ctx context.Context, userID, id, reason string) error {
-
 	s.log.Info("client restart started",
 		"client_id", id,
 		"user_id", userID,
@@ -148,6 +130,18 @@ func (s *clientService) Restart(ctx context.Context, userID, id, reason string) 
 		"client_id", client.ID,
 		"status", client.GetStatus(),
 	)
+
+	if !client.CanRestart() {
+		return domain.ErrInvalidStateTransition
+	}
+
+	if err := client.Transition(domain.ClientStatusRestarting); err != nil {
+		return err
+	}
+
+	if err := s.repo.Update(ctx, client); err != nil {
+		return err
+	}
 
 	action, err := s.actionSrv.Create(ctx, id, userID, domain.ActionRestart)
 	if err != nil {
@@ -198,126 +192,50 @@ func (s *clientService) Delete(ctx context.Context, userID, id string) error {
 		return err
 	}
 
-	if err := s.repo.Delete(ctx, id); err != nil {
-		s.log.Error("failed to delete client",
-			"client_id", id,
-			"error", err,
-		)
+	action, err := s.actionSrv.Create(ctx, id, userID, domain.ActionDelete)
+	if err != nil {
 		return err
 	}
 
-	if err := s.audit.Log(ctx, id, userID, domain.ActionDelete); err != nil {
-		s.log.Error("failed to write audit log",
-			"client_id", id,
-			"user_id", userID,
-			"error", err,
-		)
-		return err
-	}
-
-	s.log.Info("client deleted",
+	s.log.Info("client delete scheduled",
 		"client_id", id,
+		"action_id", action.ID,
 	)
 
 	return nil
 }
 
-func (s *clientService) Start(ctx context.Context, clientID string) error {
-	s.log.Info("client start started",
+func (s *clientService) Start(ctx context.Context, userID, clientID string) error {
+	s.log.Info("client start requested",
 		"client_id", clientID,
+		"user_id", userID,
 	)
 
 	client, err := s.repo.GetByID(ctx, clientID)
 	if err != nil {
-		s.log.Error("failed to get client",
-			"client_id", clientID,
-			"error", err,
-		)
 		return err
 	}
 
 	if !client.CanStart() {
-		s.log.Warn("client cannot start",
-			"client_id", clientID,
-			"status", client.GetStatus(),
-		)
 		return domain.ErrInvalidStateTransition
 	}
 
 	if err := client.Transition(domain.ClientStatusDeploying); err != nil {
-		s.log.Error("failed to transition to deploying",
-			"client_id", clientID,
-			"error", err,
-		)
 		return err
-	}
+	}	
 
 	if err := s.repo.Update(ctx, client); err != nil {
-		s.log.Error("failed to update client",
-			"client_id", clientID,
-			"error", err,
-		)
 		return err
 	}
 
-	if client.ActiveConfigID == nil {
-		s.log.Error("no active config",
-			"client_id", clientID,
-		)
-		return domain.ErrConfigNotFound
-	}
-
-	config, err := s.configRepo.GetByID(ctx, *client.ActiveConfigID)
+	action, err := s.actionSrv.Create(ctx, clientID, userID, domain.ActionDeploy)
 	if err != nil {
-		s.log.Error("failed to get config",
-			"client_id", clientID,
-			"config_id", *client.ActiveConfigID,
-			"error", err,
-		)
 		return err
 	}
 
-	s.log.Info("orchestrator deploy",
+	s.log.Info("client start scheduled",
 		"client_id", clientID,
-		"config_id", config.ID,
-	)
-
-	if err := s.orch.Deploy(ctx, client, config); err != nil {
-		s.log.Error("deploy failed",
-			"client_id", clientID,
-			"error", err,
-		)
-		return err
-	}
-
-	if err := client.Transition(domain.ClientStatusRunning); err != nil {
-		s.log.Error("failed to transition to running",
-			"client_id", clientID,
-			"error", err,
-		)
-		return err
-	}
-
-	userID, _ := ctx.Value("user_id").(string)
-
-	if err := s.audit.Log(ctx, clientID, userID, domain.ActionStart); err != nil {
-		s.log.Error("failed to write audit log",
-			"client_id", clientID,
-			"user_id", userID,
-			"error", err,
-		)
-	}
-
-	if err := s.repo.Update(ctx, client); err != nil {
-		s.log.Error("failed to persist running state",
-			"client_id", clientID,
-			"error", err,
-		)
-		return err
-	}
-
-	s.log.Info("client started",
-		"client_id", clientID,
+		"action_id", action.ID,
 	)
 
 	return nil
@@ -325,11 +243,9 @@ func (s *clientService) Start(ctx context.Context, clientID string) error {
 
 func (s *clientService) Stop(
 	ctx context.Context,
+	userID string,
 	clientID string,
 ) error {
-
-	userID, _ := ctx.Value("userID").(string)
-
 	s.log.Info("stop client started",
 		"client_id", clientID,
 		"user_id", userID,
@@ -352,15 +268,8 @@ func (s *clientService) Stop(
 		return err
 	}
 
-	action := &domain.APIClientAction{
-		ID:        uuid.NewString(),
-		ClientID:  clientID,
-		UserID:    userID,
-		Type:      domain.ActionStop,
-		CreatedAt: time.Now(),
-	}
-
-	if err := s.actionRepo.Create(ctx, action); err != nil {
+	action, err := s.actionSrv.Create(ctx, clientID, userID, domain.ActionStop)
+	if err != nil {
 		return err
 	}
 

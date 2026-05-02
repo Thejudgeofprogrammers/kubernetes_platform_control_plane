@@ -3,9 +3,9 @@ package impl
 import (
 	"context"
 	"control_plane/internal/domain"
+	"control_plane/internal/logger"
 	"control_plane/internal/repository"
 	"control_plane/internal/service/action"
-	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,10 +13,10 @@ import (
 
 type actionService struct {
 	repo repository.ClientActionRepository
-	log  *slog.Logger
+	log  logger.Logger
 }
 
-func NewActionService(repo repository.ClientActionRepository, log *slog.Logger) action.ActionService {
+func NewActionService(repo repository.ClientActionRepository, log logger.Logger) action.ActionService {
 	return &actionService{
 		repo: repo,
 		log:  log,

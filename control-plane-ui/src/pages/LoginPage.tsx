@@ -29,16 +29,16 @@ export default function LoginPage() {
 
       useAuthStore.getState().setToken(res.data.access_token);
       localStorage.setItem("refresh_token", res.data.refresh_token);
-      
+
       const me = await api.get("/users/me");
       useAuthStore.getState().setUser(me.data);
 
       navigate("/");
-  } catch (err) {
+    } catch (err) {
       alert(err);
-  } finally {
+    } finally {
       setLoading(false);
-  }
+    }
   };
 
   return (
@@ -61,9 +61,7 @@ export default function LoginPage() {
           boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
         }}
       >
-        <h2 style={{ marginBottom: "6px" }}>
-          🔐 Sign in
-        </h2>
+        <h2 style={{ marginBottom: "6px" }}>🔐 Sign in</h2>
 
         <p style={{ color: "#777", fontSize: "14px", marginBottom: "24px" }}>
           {step === "email"
@@ -91,44 +89,42 @@ export default function LoginPage() {
         </div>
 
         {step === "email" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-          <Input
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && email && !loading) {
-                requestCode();
-              }
-            }}
-          />
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+          >
+            <Input
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && email && !loading) {
+                  requestCode();
+                }
+              }}
+            />
 
-            <Button
-              onClick={requestCode}
-              disabled={!email || loading}
-            >
+            <Button onClick={requestCode} disabled={!email || loading}>
               {loading ? "Sending..." : "Send Code"}
             </Button>
           </div>
         )}
 
         {step === "code" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-          <Input
-            placeholder="Enter code"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && code && !loading) {
-                handleLogin();
-              }
-            }}
-          />
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+          >
+            <Input
+              placeholder="Enter code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && code && !loading) {
+                  handleLogin();
+                }
+              }}
+            />
 
-            <Button
-              onClick={handleLogin}
-              disabled={!code || loading}
-            >
+            <Button onClick={handleLogin} disabled={!code || loading}>
               {loading ? "Verifying..." : "Verify & Login"}
             </Button>
 

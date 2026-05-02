@@ -1,5 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient, type CreateClientPayload } from "../../../shared/api/clientApi";
+import {
+  createClient,
+  type CreateClientPayload,
+} from "../../../shared/api/clientApi";
 
 export const useCreateClient = () => {
   const qc = useQueryClient();
