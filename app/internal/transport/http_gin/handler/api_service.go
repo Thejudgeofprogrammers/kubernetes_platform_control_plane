@@ -2,11 +2,11 @@ package handler
 
 import (
 	"control_plane/internal/domain"
+	"control_plane/internal/logger"
 	apiservice "control_plane/internal/service/api_service"
 	apiserviceDTO "control_plane/internal/transport/http_gin/dto/api_service"
 	"control_plane/internal/transport/http_gin/mapper"
 	"errors"
-	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -14,10 +14,10 @@ import (
 
 type APIServiceHandler struct {
 	service apiservice.APIServiceService
-	log     *slog.Logger
+	log     logger.Logger
 }
 
-func NewAPIServiceHandler(s apiservice.APIServiceService, log *slog.Logger) *APIServiceHandler {
+func NewAPIServiceHandler(s apiservice.APIServiceService, log logger.Logger) *APIServiceHandler {
 	return &APIServiceHandler{
 		service: s,
 		log:     log,
@@ -164,4 +164,3 @@ func (h *APIServiceHandler) Update(c *gin.Context) {
 
 	c.JSON(http.StatusOK, mapper.ToAPIServiceResponse(service))
 }
-

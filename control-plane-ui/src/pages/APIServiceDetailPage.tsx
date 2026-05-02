@@ -17,7 +17,7 @@ export default function APIServiceDetailPage() {
   const [protocol, setProtocol] = useState("");
 
   useEffect(() => {
-    api.get(`/api-services/${id}`).then(res => {
+    api.get(`/api-services/${id}`).then((res) => {
       setService(res.data);
       setName(res.data.name);
       setBaseURL(res.data.base_url);

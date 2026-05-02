@@ -11,9 +11,9 @@ interface Props {
 
 export default function ClientCard({ client }: Props) {
   const queryClient = useQueryClient();
-    const navigate = useNavigate();
+  const navigate = useNavigate();
 
-    const { isOwner } = useRole();
+  const { isOwner } = useRole();
 
   const restart = async () => {
     await api.post(`/clients/${client.id}/restart`);
@@ -55,26 +55,20 @@ export default function ClientCard({ client }: Props) {
       <h3
         style={{ cursor: "pointer" }}
         onClick={() => navigate(`/clients/${client.id}`)}
-        >
+      >
         {client.name}
       </h3>
 
-      <p style={{ color: getStatusColor() }}>
-        Status: {client.status}
-      </p>
+      <p style={{ color: getStatusColor() }}>Status: {client.status}</p>
 
       <div style={{ display: "flex", gap: "8px" }}>
         <Button disabled={client.status !== "running"} onClick={restart}>
-        Restart
+          Restart
         </Button>
         {isOwner && (
-        <Button
-          onClick={remove}
-          variant="danger"
-          disabled={!canDelete}
-        >
-          Delete
-        </Button>
+          <Button onClick={remove} variant="danger" disabled={!canDelete}>
+            Delete
+          </Button>
         )}
       </div>
     </div>

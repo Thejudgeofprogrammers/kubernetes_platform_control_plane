@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"control_plane/internal/logger"
 	"control_plane/internal/service/user"
 	authDTO "control_plane/internal/transport/http_gin/dto/auth"
-	"log/slog"
+	userDTO "control_plane/internal/transport/http_gin/dto/user"
+	"control_plane/internal/transport/http_gin/mapper"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -11,10 +13,10 @@ import (
 
 type UserHandler struct {
 	service user.UserService
-	log     *slog.Logger
+	log     logger.Logger
 }
 
-func NewUserHandler(s user.UserService, log *slog.Logger) *UserHandler {
+func NewUserHandler(s user.UserService, log logger.Logger) *UserHandler {
 	return &UserHandler{
 		service: s,
 		log:     log,
@@ -25,7 +27,7 @@ func NewUserHandler(s user.UserService, log *slog.Logger) *UserHandler {
 // @Description Получить список пользователей
 // @Tags users
 // @Produce json
-// @Success 200 {object} map[string][]domain.User
+// @Success 200 {object} map[string][]dto.UserResponse
 // @Failure 500 {object} map[string]string
 // @Router /users [get]
 func (h *UserHandler) List(c *gin.Context) {
@@ -43,12 +45,17 @@ func (h *UserHandler) List(c *gin.Context) {
 		return
 	}
 
+	resp := make([]userDTO.UserResponse, 0, len(users))
+	for _, u := range users {
+		resp = append(resp, mapper.ToUserResponse(u))
+	}
+
 	h.log.Info("list users completed",
-		"count", len(users),
+		"count", len(resp),
 	)
 
 	c.JSON(http.StatusOK, gin.H{
-		"items": users,
+		"items": resp,
 	})
 }
 
@@ -68,7 +75,7 @@ func (h *UserHandler) Delete(c *gin.Context) {
 		"requested_by", requestUserID,
 	)
 
-	if err := h.service.Delete(c, userID); err != nil {
+	if err := h.service.Delete(c.Request.Context(), userID); err != nil {
 		h.log.Error("delete user failed",
 			"target_user_id", userID,
 			"requested_by", requestUserID,
@@ -123,7 +130,7 @@ func (h *UserHandler) UpdateRole(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.UpdateRole(c, userID, req.Role); err != nil {
+	if err := h.service.UpdateRole(c.Request.Context(), userID, req.Role); err != nil {
 		h.log.Warn("update role failed",
 			"target_user_id", userID,
 			"requested_by", requestUserID,
@@ -152,7 +159,7 @@ func (h *UserHandler) UpdateRole(c *gin.Context) {
 // @Description Получить текущего пользователя
 // @Tags users
 // @Produce json
-// @Success 200 {object} domain.User
+// @Success 200 {object} dto.UserResponse
 // @Failure 401 {object} map[string]string
 // @Router /users/me [get]
 func (h *UserHandler) Me(c *gin.Context) {
@@ -175,5 +182,7 @@ func (h *UserHandler) Me(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, user)
+	userFormat := mapper.ToUserResponse(*user)
+
+	c.JSON(http.StatusOK, userFormat)
 }

@@ -20,9 +20,9 @@ const (
 	ActionStop    ActionType = "stop"
 	ActionRestart ActionType = "restart"
 	ActionDelete  ActionType = "delete"
-	ActionCreate  ActionType = "create"
+	ActionCreate  ActionType = "create"  // Лишнее
 	ActionDeploy  ActionType = "deploy"
-	ActionUpdate  ActionType = "update"
+	ActionUpdate  ActionType = "update"  // В текущей модели лишнее
 )
 
 type AccessRole string

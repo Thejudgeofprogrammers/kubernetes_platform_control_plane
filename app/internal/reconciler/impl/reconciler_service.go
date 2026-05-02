@@ -3,13 +3,15 @@ package reconciler
 import (
 	"context"
 	"control_plane/internal/domain"
+	"control_plane/internal/logger"
 	"control_plane/internal/orchestrator"
 	"control_plane/internal/reconciler"
 	"control_plane/internal/repository"
 	health "control_plane/internal/service/health"
 	metics "control_plane/internal/service/metric"
+	"fmt"
 	"log"
-	"log/slog"
+
 	"time"
 )
 
@@ -19,11 +21,11 @@ type reconcilerService struct {
 	apiServiceRepo repository.APIServiceRepository
 	orchestrator   orchestrator.Orchestrator
 	configRepo     repository.ClientConfigRepository
-	log            *slog.Logger
+	log            logger.Logger
 	healthSrv      health.HealthService
 	metricsRepo    repository.MetricsRepository
 	metricsService metics.MetricsService
-	baseURL string
+	baseURL        string
 }
 
 func NewReconciler(
@@ -32,9 +34,9 @@ func NewReconciler(
 	apiServiceRepo repository.APIServiceRepository,
 	orchestrator orchestrator.Orchestrator,
 	configRepo repository.ClientConfigRepository,
-	log *slog.Logger,
+	log logger.Logger,
 	healthS health.HealthService,
-	metricsRepo    repository.MetricsRepository,
+	metricsRepo repository.MetricsRepository,
 	metricsService metics.MetricsService,
 	baseURL string,
 ) reconciler.ReconcilerService {
@@ -48,7 +50,7 @@ func NewReconciler(
 		healthSrv:      healthS,
 		metricsRepo:    metricsRepo,
 		metricsService: metricsService,
-		baseURL: baseURL,
+		baseURL:        baseURL,
 	}
 }
 
@@ -66,6 +68,7 @@ func (r *reconcilerService) Run(ctx context.Context) {
 
 		case <-ticker.C:
 			r.process(ctx)
+			r.syncState(ctx)
 		}
 	}
 }
@@ -96,6 +99,9 @@ func (r *reconcilerService) process(ctx context.Context) {
 }
 
 func (r *reconcilerService) handleAction(ctx context.Context, action *domain.APIClientAction) {
+	if action.Status != domain.ActionPending {
+		return
+	}
 
 	r.log.Info("action started",
 		"action_id", action.ID,
@@ -107,125 +113,72 @@ func (r *reconcilerService) handleAction(ctx context.Context, action *domain.API
 
 	client, err := r.clientRepo.GetByID(ctx, action.ClientID)
 	if err != nil {
-		msg := err.Error()
-
-		r.log.Error("failed to get client",
-			"action_id", action.ID,
-			"client_id", action.ClientID,
-			"error", err,
-		)
-
-		_ = r.actionRepo.UpdateStatus(ctx, action.ID, domain.ActionFailed, &msg)
+		r.failAction(ctx, action, err)
 		return
 	}
+
+	var execErr error
 
 	switch action.Type {
 
 	case domain.ActionStop:
-		r.log.Info("action stop",
-			"client_id", client.ID,
-		)
+		r.log.Info("action stop", "client_id", client.ID)
 
-		err = r.orchestrator.Delete(ctx, client.ID)
-
-		if err == nil {
-			if err2 := client.Transition(domain.ClientStatusStopped); err2 != nil {
-				r.log.Warn("failed to transition to stopped",
-					"client_id", client.ID,
-					"error", err2,
-				)
-			}
-		}
+		execErr = r.orchestrator.Delete(ctx, client.ID)
 
 	case domain.ActionRestart:
-		r.log.Info("action restart",
-			"client_id", client.ID,
-		)
+		r.log.Info("action restart", "client_id", client.ID)
 
 		if err := client.Transition(domain.ClientStatusRestarting); err != nil {
-			r.log.Warn("failed to transition to restarting",
-				"client_id", client.ID,
-				"error", err,
-			)
+			execErr = err
+			break
 		}
 
-		err = r.orchestrator.Restart(ctx, client.ID)
-
-		if err == nil {
-			if err2 := client.Transition(domain.ClientStatusRunning); err2 != nil {
-				r.log.Warn("failed to transition to running",
-					"client_id", client.ID,
-					"error", err2,
-				)
-			}
+		execErr = r.orchestrator.Restart(ctx, client.ID)
+		if execErr != nil {
+			break
 		}
+
+		execErr = client.Transition(domain.ClientStatusRunning)
 
 	case domain.ActionDelete:
-		r.log.Info("action delete",
-			"client_id", client.ID,
-		)
+		r.log.Info("action delete", "client_id", client.ID)
 
-		err = r.orchestrator.Delete(ctx, client.ID)
-
-		if err == nil {
-			_ = client.Transition(domain.ClientStatusDisabled)
+		execErr = r.orchestrator.Delete(ctx, client.ID)
+		if execErr != nil {
+			break
 		}
+
+		execErr = client.Transition(domain.ClientStatusDisabled)
 
 	case domain.ActionDeploy:
-		r.log.Info("action deploy",
-			"client_id", client.ID,
-		)
+		r.log.Info("action deploy", "client_id", client.ID)
 
 		if client.ActiveConfigID == nil {
-			msg := "no active config"
-
-			r.log.Error("deploy failed: no active config",
-				"action_id", action.ID,
-				"client_id", client.ID,
-			)
-
-			_ = r.actionRepo.UpdateStatus(ctx, action.ID, domain.ActionFailed, &msg)
-			return
+			execErr = fmt.Errorf("no active config")
+			break
 		}
 
-		config, err2 := r.getConfig(ctx, *client.ActiveConfigID)
-		if err2 != nil {
-			msg := err2.Error()
-
-			r.log.Error("failed to get config",
-				"action_id", action.ID,
-				"client_id", client.ID,
-				"config_id", *client.ActiveConfigID,
-				"error", err2,
-			)
-
-			_ = r.actionRepo.UpdateStatus(ctx, action.ID, domain.ActionFailed, &msg)
-			return
+		config, err := r.getConfig(ctx, *client.ActiveConfigID)
+		if err != nil {
+			execErr = err
+			break
 		}
 
-		err = r.orchestrator.Deploy(ctx, client, config)
-
-		if err == nil {
-			_ = client.Transition(domain.ClientStatusRunning)
+		execErr = r.orchestrator.Deploy(ctx, client, config)
+		if execErr != nil {
+			break
 		}
+
+		execErr = client.Transition(domain.ClientStatusRunning)
 	}
 
-	if err != nil {
-		msg := err.Error()
-
-		r.log.Error("action failed",
-			"action_id", action.ID,
-			"client_id", client.ID,
-			"type", action.Type,
-			"error", err,
-		)
-
-		_ = r.actionRepo.UpdateStatus(ctx, action.ID, domain.ActionFailed, &msg)
+	if execErr != nil {
+		r.failAction(ctx, action, execErr)
 		return
 	}
 
-	err = r.clientRepo.Update(ctx, client)
-	if err != nil {
+	if err := r.clientRepo.Update(ctx, client); err != nil {
 		r.log.Error("failed to update client",
 			"client_id", client.ID,
 			"error", err,
@@ -241,74 +194,85 @@ func (r *reconcilerService) handleAction(ctx context.Context, action *domain.API
 	)
 }
 
+func (r *reconcilerService) syncState(ctx context.Context) {
+	clients, _, err := r.clientRepo.List(ctx, "", 1000, 0)
+	if err != nil {
+		r.log.Error("failed to list clients", "error", err)
+		return
+	}
+
+	for _, c := range clients {
+
+		if c.GetStatus() == domain.ClientStatusDisabled {
+			continue
+		}
+
+		metrics, err := r.metricsService.Collect(ctx, r.baseURL, c.ID)
+		if err == nil {
+			for _, m := range metrics {
+				_ = r.metricsRepo.Save(ctx, m)
+			}
+		}
+
+		r.orchestrator.CheckHealth(ctx, c.ID)
+
+		health, err := r.healthSrv.Get(ctx, c.ID)
+		if err != nil || health == nil {
+			continue
+		}
+
+		oldStatus := c.GetStatus()
+
+		switch health.Status {
+		case domain.HealthHealthy:
+			if c.GetStatus() == domain.ClientStatusStopping {
+				_ = c.Transition(domain.ClientStatusStopped)
+			}
+
+		case domain.HealthDegraded:
+			r.log.Warn("client degraded", "client_id", c.ID)
+		// 	if err := c.Transition(domain.ClientStatusDeploying); err != nil {
+		// 		r.log.Warn("failed to transition to deploing",
+		// 			"client_id", c.ID,
+		// 			"current_status", c.GetStatus(),
+		// 			"error", err,
+		// 		)
+		// 	}
+
+		case domain.HealthUnhealthy:
+			if c.GetStatus() == domain.ClientStatusStopping {
+				if err := c.Transition(domain.ClientStatusStopped); err != nil {
+					r.log.Warn("failed to sync stopped",
+						"client_id", c.ID,
+						"status", c.GetStatus(),
+						"error", err,
+					)
+				}
+			}
+		}
+
+		if oldStatus != c.GetStatus() {
+			_ = r.clientRepo.Update(ctx, c)
+		}
+	}
+}
+
+func (r *reconcilerService) failAction(ctx context.Context, action *domain.APIClientAction, err error) {
+	msg := err.Error()
+
+	r.log.Error("action failed",
+		"action_id", action.ID,
+		"client_id", action.ClientID,
+		"error", err,
+	)
+
+	_ = r.actionRepo.UpdateStatus(ctx, action.ID, domain.ActionFailed, &msg)
+}
+
 func (r *reconcilerService) getConfig(ctx context.Context, id string) (*domain.APIClientConfig, error) {
 	r.log.Debug("get config",
 		"config_id", id,
 	)
 
 	return r.configRepo.GetByID(ctx, id)
-}
-
-func (r *reconcilerService) Start(ctx context.Context) {
-	go func() {
-		for {
-			clients, _, err := r.clientRepo.List(ctx, "", 1000, 0) // Тут доделать нужно
-			if err != nil {
-				r.log.Error("failed to list clients", "error", err)
-				time.Sleep(5 * time.Second)
-				continue
-			}
-
-			for _, c := range clients {
-				metrics, err := r.metricsService.Collect(ctx, r.baseURL, c.ID)
-				if err != nil {
-					continue
-				}
-
-				for _, m := range metrics {
-					_ = r.metricsRepo.Save(ctx, m)
-				}
-
-				r.orchestrator.CheckHealth(ctx, c.ID)
-
-				health, err := r.healthSrv.Get(ctx, c.ID)
-				if err != nil {
-					r.log.Error("failed to get health", "client_id", c.ID, "error", err)
-					continue
-				}
-
-				if health == nil {
-					continue
-				}
-
-				oldStatus := c.GetStatus()
-
-				switch health.Status {
-				case domain.HealthHealthy:
-					if c.GetStatus() == domain.ClientStatusCreated {
-						_ = c.Transition(domain.ClientStatusDeploying)
-					}
-
-					_ = c.Transition(domain.ClientStatusRunning)
-
-				case domain.HealthDegraded:
-					_ = c.Transition(domain.ClientStatusDeploying)
-
-				case domain.HealthUnhealthy:
-					_ = c.Transition(domain.ClientStatusStopped)
-				}
-
-				if oldStatus != c.GetStatus() {
-					if err := r.clientRepo.Update(ctx, c); err != nil {
-						r.log.Error("failed to update client status",
-							"client_id", c.ID,
-							"error", err,
-						)
-					}
-				}
-			}
-
-			time.Sleep(5 * time.Second)
-		}
-	}()
 }

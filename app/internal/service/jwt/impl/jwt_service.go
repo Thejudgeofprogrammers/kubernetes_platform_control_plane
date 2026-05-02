@@ -2,10 +2,10 @@ package impl
 
 import (
 	"fmt"
-	"log/slog"
 	"time"
 
 	"control_plane/internal/domain"
+	"control_plane/internal/logger"
 	JWTService "control_plane/internal/service/jwt"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -14,10 +14,10 @@ import (
 type jwtService struct {
 	secret string
 	exp    int
-	log    *slog.Logger
+	log    logger.Logger
 }
 
-func NewJWTService(secret string, exp int, log *slog.Logger) JWTService.JWTService {
+func NewJWTService(secret string, exp int, log logger.Logger) JWTService.JWTService {
 	return &jwtService{
 		secret: secret,
 		exp:    exp,

@@ -28,16 +28,14 @@ export function CreateUserForm({ onCreated }: { onCreated: () => void }) {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
       />
-      <div style={{ margin: "12px"}}></div>
+      <div style={{ margin: "12px" }}></div>
       <Input
         placeholder="full name"
         value={fullName}
         onChange={(e) => setFullName(e.target.value)}
       />
-      <div style={{ margin: "12px"}}></div>
-      <Button onClick={handleCreate}>
-        Create
-      </Button>
+      <div style={{ margin: "12px" }}></div>
+      <Button onClick={handleCreate}>Create</Button>
     </div>
   );
 }

@@ -16,6 +16,7 @@ type Config struct {
 	AuthRef      string
 
 	ClientID string
+	Slug     string
 }
 
 func LoadEnv() *Config {
@@ -28,6 +29,7 @@ func LoadEnv() *Config {
 		AuthRef:      getenv("AUTH_REF", ""),
 
 		ClientID: getenv("CLIENT_ID", ""),
+		Slug:     getenv("CLIENT_SLUG", ""),
 	}
 
 	if config.ClientID == "" {

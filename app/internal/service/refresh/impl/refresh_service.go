@@ -3,8 +3,8 @@ package impl
 import (
 	"context"
 	"control_plane/internal/domain"
+	"control_plane/internal/logger"
 	"control_plane/internal/service/refresh"
-	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,10 +14,10 @@ import (
 type refreshService struct {
 	rdb      *redis.Client
 	ref_time int
-	log      *slog.Logger
+	log      logger.Logger
 }
 
-func NewRefreshService(rdb *redis.Client, ttl int, log *slog.Logger) refresh.RefreshService {
+func NewRefreshService(rdb *redis.Client, ttl int, log logger.Logger) refresh.RefreshService {
 	return &refreshService{
 		rdb:      rdb,
 		ref_time: ttl,

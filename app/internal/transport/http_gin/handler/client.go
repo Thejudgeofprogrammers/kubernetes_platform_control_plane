@@ -3,11 +3,12 @@ package handler
 import (
 	"context"
 	"control_plane/internal/domain"
+	"control_plane/internal/logger"
 	"control_plane/internal/service/client"
 	dto "control_plane/internal/transport/http_gin/dto/client"
 	"control_plane/internal/transport/http_gin/mapper"
 	"errors"
-	"log/slog"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -16,19 +17,20 @@ import (
 
 type ClientHandler struct {
 	service client.ClientService
-	log     *slog.Logger
+	log     logger.Logger
+	baseURL string
 }
 
-func NewClientHandler(s client.ClientService, log *slog.Logger) *ClientHandler {
+type ctxKey string
+
+const userIDKey ctxKey = "user_id"
+
+func NewClientHandler(s client.ClientService, log logger.Logger, baseURL string) *ClientHandler {
 	return &ClientHandler{
 		service: s,
 		log:     log,
+		baseURL: baseURL,
 	}
-}
-
-func getUserID(c *gin.Context) string {
-	userID := c.GetString("user_id")
-	return userID
 }
 
 // @Summary List clients
@@ -144,9 +146,17 @@ func (h *ClientHandler) Create(c *gin.Context) {
 		"user_id", userID,
 	)
 
+	url := fmt.Sprintf(
+		"%s/api/%s",
+		h.baseURL,
+		client.Slug,
+	)
+
 	resp := dto.ClientResponse{
 		ID:           client.ID,
 		Name:         client.Name,
+		Slug:         client.Slug,
+		URL:          url,
 		APIServiceID: client.APIServiceID,
 		Status:       string(client.GetStatus()),
 		CreatedAt:    client.CreatedAt.Format(time.RFC3339),
@@ -209,9 +219,17 @@ func (h *ClientHandler) GetByID(c *gin.Context) {
 		return
 	}
 
+	url := fmt.Sprintf(
+		"%s/api/%s",
+		h.baseURL,
+		client.Slug,
+	)
+
 	resp := dto.ClientResponse{
 		ID:           client.ID,
 		Name:         client.Name,
+		Slug:         client.Slug,
+		URL:          url,
 		APIServiceID: client.APIServiceID,
 		Status:       string(client.GetStatus()),
 		CreatedAt:    client.CreatedAt.Format(time.RFC3339),
@@ -392,9 +410,9 @@ func (h *ClientHandler) StartByID(c *gin.Context) {
 		"user_id", userID,
 	)
 
-	ctx := context.WithValue(c.Request.Context(), "userID", userID)
+	ctx := context.WithValue(c.Request.Context(), userIDKey, userID)
 
-	if err := h.service.Start(ctx, clientID); err != nil {
+	if err := h.service.Start(ctx, userID, clientID); err != nil {
 		h.log.Warn("start client failed",
 			"client_id", clientID,
 			"user_id", userID,
@@ -434,9 +452,9 @@ func (h *ClientHandler) StopByID(c *gin.Context) {
 		"user_id", userID,
 	)
 
-	ctx := context.WithValue(c.Request.Context(), "userID", userID)
+	ctx := context.WithValue(c.Request.Context(), userIDKey, userID)
 
-	if err := h.service.Stop(ctx, clientID); err != nil {
+	if err := h.service.Stop(ctx, userID, clientID); err != nil {
 		h.log.Warn("stop client failed",
 			"client_id", clientID,
 			"user_id", userID,

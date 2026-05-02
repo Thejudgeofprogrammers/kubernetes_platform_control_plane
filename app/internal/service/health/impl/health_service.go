@@ -3,18 +3,18 @@ package impl
 import (
 	"context"
 	"control_plane/internal/domain"
+	"control_plane/internal/logger"
 	"control_plane/internal/repository"
 	health "control_plane/internal/service/health"
-	"log/slog"
 	"time"
 )
 
 type healthService struct {
 	repo repository.ClientHealthRepostiory
-	log  *slog.Logger
+	log  logger.Logger
 }
 
-func NewHealthService(repo repository.ClientHealthRepostiory, log *slog.Logger) health.HealthService {
+func NewHealthService(repo repository.ClientHealthRepostiory, log logger.Logger) health.HealthService {
 	return &healthService{
 		repo: repo,
 		log:  log,

@@ -3,8 +3,8 @@ package memory
 import (
 	"context"
 	"control_plane/internal/domain"
+	"control_plane/internal/logger"
 	"control_plane/internal/repository"
-	"log/slog"
 	"sync"
 )
 
@@ -14,10 +14,10 @@ type InMemoryClientAccessRepository struct {
 	mu      sync.RWMutex
 	storage []*domain.AuthClientAccess
 
-	log *slog.Logger
+	log logger.Logger
 }
 
-func NewInMemoryClientAccessRepository(log *slog.Logger) repository.ClientAccessRepository {
+func NewInMemoryClientAccessRepository(log logger.Logger) repository.ClientAccessRepository {
 	return &InMemoryClientAccessRepository{
 		log: log,
 	}

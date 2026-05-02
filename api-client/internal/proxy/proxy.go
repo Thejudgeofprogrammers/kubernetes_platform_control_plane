@@ -51,19 +51,27 @@ func New(cfg *config.Config) *Proxy {
 }
 
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
 	body, _ := io.ReadAll(r.Body)
-	r.Body.Close()
 
-	targetURL := p.cfg.BaseURL + r.URL.Path
+	prefix := "/api/" + p.cfg.Slug
+
+	path := strings.TrimPrefix(r.URL.Path, prefix)
+	if path == "" {
+		path = "/"
+	}
+
+	targetURL := p.cfg.BaseURL + path
+
 	if r.URL.RawQuery != "" {
 		targetURL += "?" + r.URL.RawQuery
 	}
 
 	fmt.Println("proxy ->", targetURL)
 
-	if r.Method == "GET" {
-		cacheKey := p.cfg.BaseURL + r.URL.String()
+	cacheKey := p.buildCacheKey(r, targetURL)
 
+	if r.Method == "GET" {
 		cache.mu.RLock()
 		item, ok := cache.m[cacheKey]
 		cache.mu.RUnlock()
@@ -89,7 +97,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		req.Host = req.URL.Host
+		// req.Host = req.URL.Host
 
 		for k, v := range r.Header {
 			for _, vv := range v {
@@ -121,18 +129,15 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		if err != nil {
 			lastErr = err
-			time.Sleep(time.Duration(p.cfg.RetryBackoff) * time.Millisecond)
+			time.Sleep(time.Duration(i+1) * time.Duration(p.cfg.RetryBackoff) * time.Millisecond)
 			continue
 		}
-		defer resp.Body.Close()
-
 		bodyBytes, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
 
 		contentType := resp.Header.Get("Content-Type")
 
 		if strings.Contains(contentType, "text/html") {
-			prefix := "/api/clients/" + p.cfg.ClientID
-
 			bodyStr := string(bodyBytes)
 			bodyStr = strings.ReplaceAll(bodyStr, `href="/`, `href="`+prefix+`/`)
 			bodyStr = strings.ReplaceAll(bodyStr, `src="/`, `src="`+prefix+`/`)
@@ -147,9 +152,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			!strings.Contains(cacheControl, "no-store") &&
 			!strings.Contains(cacheControl, "private") &&
 			!strings.Contains(contentType, "text/html") {
-
-			cacheKey := p.cfg.BaseURL + r.URL.String()
-
+				
 			headersCopy := make(http.Header)
 			for k, v := range resp.Header {
 				headersCopy[k] = append([]string{}, v...)
@@ -178,6 +181,23 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Error(w, lastErr.Error(), 502)
+}
+
+func (p *Proxy) buildCacheKey(r *http.Request, targetURL string) string {
+	headersHash := fmt.Sprintf(
+		"auth=%s|apikey=%s",
+		r.Header.Get("Authorization"),
+		r.Header.Get("X-API-Key"),
+	)
+
+	return fmt.Sprintf(
+		"%s:%s:%s:%s:%s",
+		p.cfg.Slug,
+		p.cfg.BaseURL,
+		r.Method,
+		targetURL,
+		headersHash,
+	)
 }
 
 func (p *Proxy) MetricsHandler(w http.ResponseWriter, r *http.Request) {

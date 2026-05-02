@@ -15,6 +15,8 @@ type ListClientsResponse struct {
 type ClientResponse struct {
 	ID             string  `json:"id"`
 	Name           string  `json:"name"`
+	Slug         string `json:"slug"`
+	URL          string `json:"url"`
 	APIServiceID   string  `json:"api_service_id"`
 	Status         string  `json:"status"`
 	ActiveConfigID *string `json:"active_config_id,omitempty"`

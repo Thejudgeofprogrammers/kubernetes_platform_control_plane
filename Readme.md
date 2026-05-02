@@ -1,7 +1,19 @@
 # Control Plane
- 
-Посмотреть BPMN статус коды
-Написать документацию
+
+## Запуск
+
+```bash
+# 1. minikube start --driver='docker'
+# 2. minikube addons enable ingress
+# 3. kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 8081:80
+# 4. Запуск backend
+# - cd app
+# - Создать .env.prod .env.dev
+# - make run-dev
+# 5. Запуск frontend
+# - cd control-plane-ui
+# - npm run dev
+```
 
 ## API Документация
 

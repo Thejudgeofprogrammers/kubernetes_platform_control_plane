@@ -2,11 +2,11 @@ package handler
 
 import (
 	"control_plane/internal/domain"
+	"control_plane/internal/logger"
 	cfgService "control_plane/internal/service/config"
 	configDTO "control_plane/internal/transport/http_gin/dto/config"
 	"control_plane/internal/transport/http_gin/mapper"
 	"errors"
-	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -14,10 +14,10 @@ import (
 
 type ConfigHandler struct {
 	service cfgService.ConfigService
-	log     *slog.Logger
+	log     logger.Logger
 }
 
-func NewConfigHandler(s cfgService.ConfigService, log *slog.Logger) *ConfigHandler {
+func NewConfigHandler(s cfgService.ConfigService, log logger.Logger) *ConfigHandler {
 	return &ConfigHandler{
 		service: s,
 		log:     log,

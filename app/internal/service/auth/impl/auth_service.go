@@ -3,13 +3,13 @@ package impl
 import (
 	"context"
 	"control_plane/internal/domain"
+	"control_plane/internal/logger"
 	"control_plane/internal/repository"
 	"control_plane/internal/service/auth"
 	"control_plane/internal/service/email"
 	"control_plane/internal/service/jwt"
 	"control_plane/internal/service/refresh"
 	"fmt"
-	"log/slog"
 	"math/rand"
 	"strings"
 	"time"
@@ -24,7 +24,7 @@ type authService struct {
 	jwtService     jwt.JWTService
 	emailSender    email.EmailSender
 	expire         int
-	log            *slog.Logger
+	log            logger.Logger
 }
 
 func NewAuthService(
@@ -34,14 +34,14 @@ func NewAuthService(
 	jwtService jwt.JWTService,
 	emailSender email.EmailSender,
 	exp int,
-	log *slog.Logger,
+	log logger.Logger,
 ) auth.AuthService {
 	return &authService{
 		userRepo:       userRepo,
 		codeRepo:       codeRepo,
 		refreshService: refreshService,
 		jwtService:     jwtService,
-		emailSender: 	emailSender,
+		emailSender:    emailSender,
 		expire:         exp,
 		log:            log,
 	}

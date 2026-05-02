@@ -15,10 +15,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <div className="layout">
       <div className="navbar">
         <div className="nav-left">
-          <Link to="/" className="nav-link">Main</Link>
-          <Link to="/clients" className="nav-link">Clients</Link>
-          <Link to="/api-services" className="nav-link">API Services</Link>
-          <Link to="/users" className="nav-link">Users</Link>
+          <Link to="/" className="nav-link">
+            Main
+          </Link>
+          <Link to="/clients" className="nav-link">
+            Clients
+          </Link>
+          <Link to="/api-services" className="nav-link">
+            API Services
+          </Link>
+          <Link to="/users" className="nav-link">
+            Users
+          </Link>
         </div>
 
         <div className="nav-right">
@@ -29,9 +37,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </div>
 
-      <div className="content">
-        {children}
-      </div>
+      <div className="content">{children}</div>
     </div>
   );
 }

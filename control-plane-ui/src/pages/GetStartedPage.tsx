@@ -16,7 +16,9 @@ export default function GetStartedPage() {
         background: "linear-gradient(to bottom, #f9fafb, #ffffff)",
       }}
     >
-      <h1 style={{ fontSize: "42px", marginBottom: "16px", textAlign: "center" }}>
+      <h1
+        style={{ fontSize: "42px", marginBottom: "16px", textAlign: "center" }}
+      >
         🚀 Control Plane
       </h1>
 
@@ -79,13 +81,15 @@ export default function GetStartedPage() {
         />
       </div>
 
-      <div style={{ marginTop: "60px", textAlign: "center", maxWidth: "700px" }}>
+      <div
+        style={{ marginTop: "60px", textAlign: "center", maxWidth: "700px" }}
+      >
         <h2 style={{ marginBottom: "16px" }}>Как это работает</h2>
 
         <p style={{ color: "#666", lineHeight: "1.6" }}>
-          Ты создаёшь API-client → настраиваешь конфигурацию →
-          Control Plane разворачивает его в Kubernetes →
-          весь трафик маршрутизируется через Ingress.
+          Ты создаёшь API-client → настраиваешь конфигурацию → Control Plane
+          разворачивает его в Kubernetes → весь трафик маршрутизируется через
+          Ingress.
         </p>
       </div>
     </div>
